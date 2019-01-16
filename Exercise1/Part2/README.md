@@ -12,4 +12,4 @@ You will not be able to complete this exercise without a very basic practical un
 - Play the [Git Game](https://www.git-game.com/)
 - [Feature branch workflow](https://www.atlassian.com/git/tutorials/comparing-workflows/feature-branch-workflow)
 
-Some prefer the command line while some prefer something graphical, both is fine. An overview of graphical git clients can be found [here](https://git-scm.com/download/gui/linux).
+Some prefer the command line while some prefer something graphical, both is fine. An overview of graphical git clients can be found [here](https://git-scm.com/download/gui/linux)
