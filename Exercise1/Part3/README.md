@@ -17,7 +17,7 @@ When answering the questions, remember to use all the resources at your disposal
  
  ### Does creating concurrent programs make the programmer's life easier? Harder? Maybe both?
  (Come back to this after you have worked on part 4 of this exercise)
- > *Your answer here*
+ > Both, more difficult to handle timing and such. 
  
  ### What are the differences between processes, threads, green threads, and coroutines?
  > The process is the overall structure of the program, and can include e.i. threads. The difference between threads and green threads is that green threads are schedueled by a virtual machine and not the operating system, while the difference between threads and coroutines is that coroutines are sequential, while threads can be executed in parallel. Concurrency vs Parallelism. 
