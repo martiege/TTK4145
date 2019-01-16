@@ -6,7 +6,7 @@ To complete this exercise you will have to use git. Create one or several commit
 When answering the questions, remember to use all the resources at your disposal. Asking the internet isn't a form of "cheating", it's a way of learning.
 
  ### What is concurrency? What is parallelism? What's the difference?
- > Concurrency is the ability to divide up a given program / algorithm and execute it out of order with the same final result. Parallelism is solving about a program by executing several calculations simultaneously. Though these seem very similar and often used together, there are differences and you can have one without the other. Concurrency just means that the program can be executed in a different order, while parallelism is just about executing several things at the same time.
+ > Concurrency is the ability to divide up a given program / algorithm and execute it out of order with the same final result. Parallelism is solving a problem by executing several calculations simultaneously. Though these seem very similar and often used together, there are differences and you can have one without the other. Concurrency just means that the program can be executed in a different order, while parallelism is just about executing several things at the same time.
  
  ### Why have machines become increasingly multicore in the past decade?
  > It has become increasingly difficult to increase computing speed of single core CPUs, as however fast they execute each instruction, they will still only execute one at a time. By having two cores, the processing speed could theoretically be doubled, and further increased with more cores. 
@@ -20,10 +20,10 @@ When answering the questions, remember to use all the resources at your disposal
  > *Your answer here*
  
  ### What are the differences between processes, threads, green threads, and coroutines?
- > *Your answer here*
+ > The process is the overall structure of the program, and can include e.i. threads. The difference between threads and green threads is that green threads are schedueled by a virtual machine and not the operating system, while the difference between threads and coroutines is that coroutines are sequential, while threads can be executed in parallel. Concurrency vs Parallelism. 
  
  ### Which one of these do `pthread_create()` (C/POSIX), `threading.Thread()` (Python), `go` (Go) create?
- > `pthread_create()` and `threading.Thread()` starts a new thread, 
+ > `pthread_create()` starts a new thread, `threading.Thread()` creates a coroutine, unless the multiprocessing module is utilized, and `go` creates a go(co)routine. 
  
  ### How does pythons Global Interpreter Lock (GIL) influence the way a python Thread behaves?
  > GIL gives the control of the interpreter to just one of the threads, which can be a problem when using multi-threaded code.

@@ -1,0 +1,1 @@
+All the languages end up with random results, as the threads are changing the values of variables before they have been saved. 

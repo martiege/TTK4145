@@ -11,10 +11,14 @@ i = 0
 
 def incrementingFunction():
     global i
+    for j in range(1000000):
+        i += 1
     # TODO: increment i 1_000_000 times
 
 def decrementingFunction():
     global i
+    for k in range(1000000):
+        i -= 1
     # TODO: decrement i 1_000_000 times
 
 
@@ -26,7 +30,9 @@ def main():
     decrementing = Thread(target = decrementingFunction, args = (),)
     
     # TODO: Start both threads
-    
+    incrementing.start()
+    decrementing.start()
+
     incrementing.join()
     decrementing.join()
     

@@ -7,8 +7,7 @@ int i = 0;
 void* incrementingThreadFunction(){
     // TODO: increment i 1_000_000 times
 	for (int j = 0; j < 1000000; ++j) { ++i; }
-	
-    return NULL;
+	return NULL;
 }
 
 void* decrementingThreadFunction(){
