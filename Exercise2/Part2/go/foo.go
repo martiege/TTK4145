@@ -13,7 +13,7 @@ const (
 	Exit
 )
 
-func number_server(add_number <-chan int, exit <-chan bool, number chan<- int) {
+func number_server(add_number <-chan int, exit <-chan bool, number chan<- int, getnumb <-chan bool) {
 	var i = 0
 
 	// This for-select pattern is one you will become familiar with if you're using go "correctly".
@@ -23,7 +23,8 @@ func number_server(add_number <-chan int, exit <-chan bool, number chan<- int) {
 			// You will at least need to update the number and handle control signals.
 		case a := <- add_number:
 			i += a
-		case number <- i:
+		case <-getnumb:
+			number <- i
 		case <-exit:
 			return
 		}
@@ -53,14 +54,16 @@ func main() {
 	finished := make(chan bool)
 	number := make(chan int)
 	exit := make(chan bool)
+	getnumb := make(chan bool)
 
 	// TODO: Spawn the required goroutines
 	go incrementing(add_number, finished)
 	go decrementing(add_number, finished)
-	go number_server(add_number, exit, number)
+	go number_server(add_number, exit, number, getnumb)
 
 	<-finished
 	<-finished
+	getnumb <- true
 	
 	Println("The magic number is:", <-number)
 	exit<-true
