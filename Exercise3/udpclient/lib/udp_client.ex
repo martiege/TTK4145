@@ -12,48 +12,32 @@ defmodule UDPClient do
       :world
 
   """
-  
-  def start() do
-    IO.puts "Opening"
-    {:ok, socket} = :gen_udp.open(0, [{:broadcast, true}])
 
-    handle(socket)
+  def send(msg, port) do
+    # first line probably wrong
+    # {:ok, addr} = :gen_udp.open(30000, [{:ip, {255, 255, 255, 255}}])
+    {:ok, sendSock} = :gen_udp.open(0, [{:broadcast, true}, {:reuseaddr, true}])
+    :gen_udp.send(sendSock, {255, 255, 255, 255}, port, msg)
+    # broadcastIP = #.#.#.255. First three bytes are from the local IP, or just use 255.255.255.255
+    # addr = new InternetAddress(broadcastIP, port)
+    # sendSock = new Socket(udp) # UDP, aka SOCK_DGRAM
+    # sendSock.setOption(broadcast, true)
+    # sendSock.sendTo(message, addr)
   end
 
-  def read_ip() do
-    IO.puts "Getting the IP..."
-    {:ok, socket} = :gen_udp.open(30000)
+  def reciever() do
+    byte[1024] buffer
+    InternetAddress fromWho
+    recvSock = new Socket(udp)
+    recvSock.bind(addr) # same addr as sender
+    loop
+      buffer.clear
 
-    read(socket)
+      # fromWho will be modified by ref here. Or it's a return value. Depends
+      recvSock.receiveFrom(buffer, ref fromWho)
+      if (fromWho.IP != localIP) # check we are not receiving from ourselves
+        # do stuff with buffer
+      end
   end
-
-  def read(socket) do
-    IO.puts "Reading socket"
-    :gen_udp.recv(socket, 1024)
-
-    read(socket)
-  end
-
-  def nice({:ok, {adr, _port, _packet}}) do
-    IO.puts "#{adr}"
-  end
-
-  def nice({_error, reason}) do
-    IO.puts "ERROR #{reason}"
-  end
-
-  def handle(server) do
-    {:ok, {adr, _port, _packet}} = :gen_udp.recv(server, 1024)
-    {ip0, ip1, ip2, ip3} = adr
-    IO.puts "#{ip0} #{ip1} #{ip2} #{ip3}\n"
-
-    handle(server)
-  end
-
-  def send_data(data) do
-    server = Socket.UDP.open!
-    Socket.Datagram.send!(server, data, {{255, 255, 255, 255}, 20})
-  end
-
 
 end
