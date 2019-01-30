@@ -13,11 +13,11 @@ defmodule UDPClient do
 
   """
 
-  def send(msg, port) do
+  def send(msg, to_port, address) do
     # first line probably wrong
     # {:ok, addr} = :gen_udp.open(30000, [{:ip, {255, 255, 255, 255}}])
     {:ok, sendSock} = :gen_udp.open(0, [{:broadcast, true}, {:reuseaddr, true}])
-    :gen_udp.send(sendSock, {255, 255, 255, 255}, port, msg)
+    :gen_udp.send(sendSock, address, port, msg)
     # broadcastIP = #.#.#.255. First three bytes are from the local IP, or just use 255.255.255.255
     # addr = new InternetAddress(broadcastIP, port)
     # sendSock = new Socket(udp) # UDP, aka SOCK_DGRAM
@@ -28,7 +28,7 @@ defmodule UDPClient do
   def reciever(port, address) do
     {:ok, recvSock} = :gen_udp.open(port, [{:reuseaddr, true}, {:ip, address}])
     # bind to addr?
-    receive(recvSock) 
+    receive(recvSock)
 
 
     #byte[1024] buffer
