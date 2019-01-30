@@ -11,9 +11,12 @@ defmodule UDPClient do
       iex> UDPClient.hello()
       :world
 
+  {10, 100, 23, 242}
+  {10, 100, 23, 187}
+
   """
 
-  def send(msg, to_port, address) do
+  def send(msg, port, address) do
     # first line probably wrong
     # {:ok, addr} = :gen_udp.open(30000, [{:ip, {255, 255, 255, 255}}])
     {:ok, sendSock} = :gen_udp.open(0, [{:broadcast, true}, {:reuseaddr, true}])
@@ -25,10 +28,10 @@ defmodule UDPClient do
     # sendSock.sendTo(message, addr)
   end
 
-  def reciever(port, address) do
-    {:ok, recvSock} = :gen_udp.open(port, [{:reuseaddr, true}, {:ip, address}])
+  def reciever(port) do
+    {:ok, recvSock} = :gen_udp.open(port, [:binary, {:reuseaddr, true}, {:active, false}])
     # bind to addr?
-    receive(recvSock)
+    reciever(recvSock, 0)
 
 
     #byte[1024] buffer
@@ -42,16 +45,16 @@ defmodule UDPClient do
       #recvSock.receiveFrom(buffer, ref fromWho)
       #if (fromWho.IP != localIP) # check we are not receiving from ourselves
         # do stuff with buffer
-      #end
+      #endd
   end
 
-  def reciever(recvSock) do
-    {ok:, {address, port, packet}} = :gen_udp.recv(recvSock, 1024)
+  def reciever(recvSock, _int) do
+    {:ok, {address, port, packet}} = :gen_udp.recv(recvSock, 0)
     reciever(address, port, packet)
-    reciever(recvSock)
+    reciever(recvSock, 0)
   end
 
-  def reciever(address, port, packet) when address != localIP do
+  def reciever(address, _port, packet) when address != {10, 100, 23, 187} do
     IO.puts "This packet was sent: #{packet}"
   end
 
