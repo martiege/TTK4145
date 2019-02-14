@@ -37,3 +37,7 @@ System
 			especially good for Publisher - Subscriber
 			
 
+	Testing
+		ExUnit to test modules
+
+		Selfchecking functions to give system "all clear"
