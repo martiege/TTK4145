@@ -1,0 +1,43 @@
+Elevator guarantees 
+	Elevator looses network: 
+		Reassign orders (subnetwork)
+		(order is fulfilled, redundancy)
+
+		Try to reconnect
+		(will not work alone unless necessary)
+
+		Rebuild full order
+		(efficient order distribution)
+
+	Elevator looses power:
+		Initialize hardware, software
+		(elevator is working)
+
+		Reestablish global and local orders, network + file
+		(no lost orders)
+		NB! not necessary to reestablish local orders, 
+		this is concidered a major failing for the system
+		and as such any file storage may be corrupted and 
+		has to be discarded. Global requests (or orders) 
+		must be reestablished
+
+		Network guarantees
+
+	Unforseen events => elevator unable to fulfill order
+		Every system tick, the lowest order / request bid is 
+		incremented, making it more undesirable over time
+		(reassign elevators that are inefficient over time)
+
+Orders (requests) guarantees
+	Accepting orders:
+		Self-checks, look for all clear
+		(system should behave reasonably)
+
+		Spam-filter? GenStage can filter...
+
+		Answer garbage msg format by raising error on origin
+		(stop faulty elevators from sending messages)
+	
+	Share entire state:
+		State changes => combine state through set-like 
+		behaviour, same process for offline -> online
