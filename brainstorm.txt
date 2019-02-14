@@ -1,0 +1,39 @@
+System
+	
+	Network
+		Send global request immediatly once recieved
+		
+		Alive message on "system tick" 
+			Send entire state
+
+		Broadcast messages
+			Any elevator on the network should connect
+
+			If you don't recieve a state during alive, 
+			that elevator should be "disconnected" 
+
+	
+	States
+		Complete system state, local and network
+		Local pubsub, see Request algortithm
+		
+
+	Events
+		GenStage
+
+		GenEvent 
+			Deprecated
+			:gen_event
+
+		Registry
+			Might not be too usable
+
+		Supervisor and GenServers		
+	
+	
+	Request assignment algorithm
+		Pubsub
+			Elixir Registry module seems to be 
+			especially good for Publisher - Subscriber
+			
+
