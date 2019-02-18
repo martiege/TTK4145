@@ -14,6 +14,8 @@ System
 
 	
 	States
+		Use GenStateMachine? 
+
 		Complete system state, local and network
 		Local pubsub, see Request algortithm
 		
@@ -29,7 +31,8 @@ System
 			Might not be too usable
 
 		Supervisor and GenServers		
-	
+		
+		GenStateMachine
 	
 	Request assignment algorithm
 		Pubsub
