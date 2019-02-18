@@ -1,5 +1,18 @@
-defmodule UDP do
-  use GenServer
+defmodule UDPServer do
+  #use GenServer
+
+  def start_link(port, opts) do
+
+  end
+
+  def init(port, opts) do
+    {:ok, socket} = :gen_udp.open(port, opts)
+
+    # look for other elevators on system?
+    {:ok, socket}
+  end
+
+
 
   def start_link(port) do
     GenServer.start_link(__MODULE__, port)
@@ -28,4 +41,4 @@ defmodule UDP do
 
 end
 
-{:ok, _pid} = Supervisor.start_link([{UDP, 2052}], strategy: :one_for_one) 
+#{:ok, _pid} = Supervisor.start_link([{UDP, 2052}], strategy: :one_for_one)
