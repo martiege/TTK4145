@@ -16,9 +16,9 @@ defmodule SimpleElevator do
 
   def start do
     Agent.start_link(fn -> %{
-      :floor => 0, 
-      :dir => :stop, 
-      :behaviour => :idle, 
+      :floor => 0,
+      :dir => :stop,
+      :behaviour => :idle,
       :requests => %{
         :command => [false, false, false, false],
         :call_up => [false, false, false, :invalid],
@@ -29,7 +29,7 @@ defmodule SimpleElevator do
         #}
       },
       :config => %{
-        :clear_request_variant => :clear_all, 
+        :clear_request_variant => :clear_all,
         :open_door => 10
       }
     } end)
@@ -42,5 +42,23 @@ defmodule SimpleElevator do
   def set_floor(pid, value) do
     Agent.update(pid, &Map.put(&1, :floor, value))
   end
+
+  #defstruct
+    #floor: 0,
+    #dir: :stop,
+    #behaviour: :idle,
+    #requests: %{
+      #command: [false, false, false, false],
+      #call_up: [false, false, false, :invalid],
+      #call_down: [:invalid, false, false, false],
+      #:call => %{
+      #  :up => [false, false, false, :invalid],
+      #  :down => [:invalid, false, false, false]
+      #}
+    #},
+    #config: %{
+      #clear_request_variant: :clear_all,
+      #open_door: 10
+    #}
 
 end

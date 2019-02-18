@@ -19,6 +19,18 @@ System
 		Complete system state, local and network
 		Local pubsub, see Request algortithm
 		
+		Separate?
+			Data
+				floor, dir?
+			
+			State
+				behaviour, dir?
+	
+			Requests
+
+
+			Config
+			
 
 	Events
 		GenStage
