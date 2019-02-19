@@ -1,14 +1,14 @@
-defmodule UDPServer do
+defmodule UDP do
 
 end
 
-defmodule UDPServer.Supervisor do
+defmodule UDP.Supervisor do
   use Supervisor
 
 
 end
 
-defmodule UDPServer.Receiver do
+defmodule UDP.Server do
   @receiver_port    60000
   @receiver_options [:list, active: true]
   @receiver_timer   1000
@@ -27,8 +27,8 @@ defmodule UDPServer.Receiver do
   end
 
 
-  def handle_info({:udp, _socket, _address, _port, data}, receiver_socket) do
-    IO.puts("Received packet: #{data}")
+  def handle_info({:udp, socket, address, port, data}, receiver_socket) do
+    IO.puts("Received packet: #{Enum.to_list(data)}")
 
     {:noreply, receiver_socket}
   end
