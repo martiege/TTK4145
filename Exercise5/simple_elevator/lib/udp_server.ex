@@ -28,7 +28,7 @@ defmodule UDP.Server do
 
 
   def handle_info({:udp, socket, address, port, data}, receiver_socket) do
-    IO.puts("Received packet: #{Enum.to_list(data)}")
+    IO.puts("Received packet: #{:binary.bin_to_list(data)}")
 
     {:noreply, receiver_socket}
   end
@@ -75,3 +75,9 @@ end
 #
 #
 # end
+
+defmodule UDP.Message do
+  
+  
+
+end

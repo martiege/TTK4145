@@ -1,16 +1,29 @@
+https://github.com/bendike
 System
 	
 	Network
 		Send global request immediatly once recieved
+			Type identifier (UP / DOWN)
+			Floor 
 		
 		Alive message on "system tick" 
 			Send entire state
+			Keep structure of the map when sending, 
+			Immediatly translate back when received
 
 		Broadcast messages
 			Any elevator on the network should connect
 
 			If you don't recieve a state during alive, 
 			that elevator should be "disconnected" 
+
+			Elevator identifier
+			IP address
+			Port number
+
+		Format: sending binary / string
+			0: identifier for message type
+			
 
 	
 	States
