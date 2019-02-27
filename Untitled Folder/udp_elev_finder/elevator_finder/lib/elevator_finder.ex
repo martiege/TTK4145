@@ -15,7 +15,7 @@ defmodule ElevatorFinder do
 
   @finderPort 50000
   @elevName "OurElevator"
-  @broadcastWait 1000
+  @broadcastWait 10000
   @broadcastIP {255, 255, 255, 255}
 
   use GenServer

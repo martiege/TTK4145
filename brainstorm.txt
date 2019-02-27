@@ -25,6 +25,15 @@ System
 			0: identifier for message type
 			
 
+		Incoming requests:
+			:udp
+				(Add new elevator) or (Old elevator still alive)
+					:request_state_changes
+				Ignore self calls
+
+			:broadcast
+				Broadcasts udp message to all elevators on the network
+				Request another broadcast after given time
 	
 	States
 		Use GenStateMachine? 
@@ -34,16 +43,27 @@ System
 		
 		Separate?
 			Data
-				floor, dir?
+				floor
+				requests (local / hall, global / (up, down))
+				other_elevators (name, state)
 			
 			State
-				behaviour, dir?
-	
-			Requests
-
-
-			Config
-			
+				behaviour
+				dir
+				config
+		
+		
+		Incoming requests:
+			:event -> change data
+				Command up, down
+				Hall
+				Obstruction?
+				Stop?
+			:network -> change data
+				requests
+				other_elevators (triggered)
+			:controller -> change state / data
+				dir, behaviour 		
 
 	Events
 		GenStage
@@ -58,11 +78,20 @@ System
 		Supervisor and GenServers		
 		
 		GenStateMachine
+
+		Incoming requests: 
+			Nothing??
 	
 	Request assignment algorithm
 		Pubsub
 			Elixir Registry module seems to be 
 			especially good for Publisher - Subscriber
+
+		Incoming requests: 
+			:timer 
+				redo algorithm
+				send changes to requests name of the elevator given the request
+				send appropriate state changes (dir, behaviour)
 			
 
 	Testing
