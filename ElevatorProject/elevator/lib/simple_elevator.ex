@@ -15,12 +15,19 @@ defmodule SimpleElevator do
 
   use GenStateMachine
 
-  def start_link do
-    state = %{:dir => :stop, :behaviour => :idle, :door => :closed}
-    data  = %{:floor => 0,
-              :requests => %{ :command => [false, false, false, false],
-                              :call_up => [false, false, false, :invalid],
-                              :call_down => [:invalid, false, false, false] } }
+  def start_link([]) do
+    SimpleElevator.start_link()
+  end
+
+  def start_link() do
+    state = %{:dir => :stop,
+              :behaviour => :idle,
+              :door => :closed,
+              :floor => 0,
+              :command => [false, false, false, false],
+              :call_up => [false, false, false, :invalid],
+              :call_down => [:invalid, false, false, false] }
+    data  = %{}
 
     GenStateMachine.start_link(__MODULE__, {state, data}, [name: __MODULE__])
   end
@@ -28,23 +35,23 @@ defmodule SimpleElevator do
   # Cast functions
 
   def handle_event(:cast, {:set_floor, floor}, state, data) do
-    data = Map.replace!(data, :floor, floor)
+    state = Map.replace!(state, :floor, floor)
     {:next_state, state, data}
   end
 
   def handle_event(:cast, {:set_command, floor, new_state}, state, data) do
     # TODO: simplify
-    data = Map.replace!(data, :requests, Map.replace!(data[:requests], :command, List.replace_at(data[:requests][:command], floor, new_state)))
+    state = Map.replace!(state, :command, List.replace_at(state[:command], floor, new_state))
     {:next_state, state, data}
   end
 
   def handle_event(:cast, {:set_call_up, floor, new_state}, state, data) do
-    data = Map.replace!(data, :requests, Map.replace!(data[:requests], :call_up, List.replace_at(data[:requests][:call_up], floor, new_state)))
+    state = Map.replace!(state, :call_up, List.replace_at(state[:call_up], floor, new_state))
     {:next_state, state, data}
   end
 
   def handle_event(:cast, {:set_call_down, floor, new_state}, state, data) do
-    data = Map.replace!(data, :requests, Map.replace!(data[:requests], :call_down, List.replace_at(data[:requests][:call_down], floor, new_state)))
+    state = Map.replace!(state, :call_down, List.replace_at(state[:call_down], floor, new_state))
     {:next_state, state, data}
   end
 
@@ -63,36 +70,49 @@ defmodule SimpleElevator do
     {:next_state, state, data}
   end
 
+  def handle_event(:cast, :share_state, state, data) do
+    IO.puts "Start sharing state..."
+
+    GenServer.multi_call([Node.self() | Node.list()], SimpleElevator, :)
+
+    {:next_state, state, data}
+  end
+
   # Call functions
 
   def handle_event({:call, from}, :get_floor, state, data) do
-    {:next_state, state, data, [{:reply, from, data[:floor]}]}
+    {:next_state, state, data, [{:reply, from, state[:floor]}]}
   end
 
   def handle_event({:call, from}, {:get_command, floor}, state, data) do
-    {:next_state, state, data, [{:reply, from, Enum.at(data[:requests][:command], floor)}]}
+    {:next_state, state, data, [{:reply, from, Enum.at(state[:command], floor)}]}
   end
 
   def handle_event({:call, from}, {:get_call_up, floor}, state, data) do
-    {:next_state, state, data, [{:reply, from, Enum.at(data[:requests][:call_up], floor)}]}
+    {:next_state, state, data, [{:reply, from, Enum.at(state[:call_up], floor)}]}
   end
 
   def handle_event({:call, from}, {:get_call_down, floor}, state, data) do
-    {:next_state, state, data, [{:reply, from, Enum.at(data[:requests][:call_down], floor)}]}
+    {:next_state, state, data, [{:reply, from, Enum.at(state[:call_down], floor)}]}
   end
 
   def handle_event({:call, from}, :get_dir, state, data) do
-    {:next_state, state, data, [{:reply, from, state[:dir]}]} 
+    {:next_state, state, data, [{:reply, from, state[:dir]}]}
   end
 
   def handle_event({:call, from}, :get_behaviour, state, data) do
-    {:next_state, state, data, [{:reply, from, state[:behaviour]}]} 
+    {:next_state, state, data, [{:reply, from, state[:behaviour]}]}
   end
 
   def handle_event({:call, from}, :get_door, state, data) do
-    {:next_state, state, data, [{:reply, from, state[:door]}]} 
+    {:next_state, state, data, [{:reply, from, state[:door]}]}
   end
- 
+
+  def handle_event({:call, from}, {:get_other_state, other_state}, state, data) do
+    IO.puts "Getting another state..."
+
+
+  end
 
   # use Agent
 

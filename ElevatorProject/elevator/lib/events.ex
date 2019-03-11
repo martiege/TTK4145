@@ -1,5 +1,5 @@
 defmodule Events do
-    
+
     # use GenStage
 
     # def start_link() do
@@ -12,7 +12,7 @@ defmodule Events do
 
     # def handle_events(events, _from, state) do
     #     # handle events!
-    #     # pattern matching 
+    #     # pattern matching
 
     #     {:noreply, [], state}
     # end
@@ -27,7 +27,7 @@ defmodule Events.Button.Command do
 
 end
 
-defmodule Events.Button.CallUp do 
+defmodule Events.Button.CallUp do
 
 end
 
@@ -44,11 +44,11 @@ defmodule Events.Button.CallDown do
     # def start(_pid, _floor, buttons) do
     #     buttons
     # end
-    
+
     # def handle_call_down(pid, floor, button_pressed) when button_pressed == 1 do
     #     # add request
     #     # send to the rest of the network
-    #     # turn light on 
+    #     # turn light on
     #     IO.puts("Button called down nn floor: #{floor}")
     #     Process.sleep(1000)
     #     handle_call_down(pid, floor, Driver.get_order_button_state(pid, floor, :call_down))
@@ -66,14 +66,14 @@ defmodule Events.Arrive do
 
     @floor_timeout 100
 
-    def start_link(driver_pid, state_pid) do 
+    def start_link(driver_pid, state_pid) do
         Driver.set_floor_indicator(driver_pid, 0)
         # TODO: change to use GenServer, and send_after (see udp_server module)
         pid = spawn_link(fn -> find_floor(driver_pid, state_pid, 0) end)
         {:ok, pid}
     end
 
-    def find_floor(driver_pid, state_pid, old_floor) do 
+    def find_floor(driver_pid, state_pid, old_floor) do
         new_floor = Driver.get_floor_sensor_state(driver_pid)
 
         #IO.inspect new_floor
@@ -89,7 +89,7 @@ defmodule Events.Arrive do
                 # stop for x amount of time
                 # open door for x amount of time
                 Process.send(Events.Door, :open, [])
-                
+
                 # clear requests for this floor
                     # state and driver
                     # command and call locally
@@ -97,7 +97,7 @@ defmodule Events.Arrive do
 
                 calculate_new_direction = :stop
                 Process.send_after(Events.Door, {:close, calculate_new_direction}, @floor_timeout)
-                # close door 
+                # close door
                 # get new direction
             end
 
@@ -109,16 +109,16 @@ defmodule Events.Arrive do
             # GenServer.abcast() eventually
             # GenStateMachine.cast(state_pid, {:set_call_up, new_floor, false})
 
-            
+
             Driver.set_floor_indicator(driver_pid, new_floor)
         end
         # send_after
         #Process.sleep(@floor_timeout)
-        find_floor(driver_pid, new_floor)
+        #find_floor(driver_pid, new_floor)
     end
 
 
-    
+
     # use GenStage
 
     # def start_link(pid) do
@@ -163,10 +163,10 @@ defmodule Events.Arrive do
 end
 
 defmodule Events.Door do
-    
+
     use GenServer
 
-    def start_link do 
+    def start_link do
         GenServer.start_link(__MODULE__, [], [name: __MODULE__])
     end
 
@@ -198,5 +198,5 @@ defmodule Events.Door do
         {:noreply, :closed}
     end
 
-    
+
 end
