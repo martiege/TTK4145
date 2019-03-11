@@ -12,6 +12,10 @@ defmodule SimpleElevator do
       :world
 
   """
+  @sync_timeout 100
+  @base_cost 100
+  @top_floor 3
+  @base_floor 0
 
   use GenStateMachine
 
@@ -20,13 +24,20 @@ defmodule SimpleElevator do
   end
 
   def start_link() do
-    state = %{:dir => :stop,
+    init_request = {false, @base_cost} # request base, initialized as false and base cost
+    init_list = List.duplicate(init_request, @top_floor - @base_floor) # request list base
+    init_list_command = [init_request | init_list] # command request list
+    init_list_call = [:invalid  | init_list] # first element of call down is invalid, last of call up
+
+    state = %{
+              :dir => :stop,
               :behaviour => :idle,
               :door => :closed,
               :floor => 0,
-              :command => [false, false, false, false],
-              :call_up => [false, false, false, :invalid],
-              :call_down => [:invalid, false, false, false] }
+              :command => init_list_command,
+              :call_up => Enum.reverse(init_list_call), # reversed such that last element is invalid
+              :call_down => init_list_call
+             }
     data  = %{}
 
     GenStateMachine.start_link(__MODULE__, {state, data}, [name: __MODULE__])
@@ -124,15 +135,51 @@ defmodule SimpleElevator do
 
     # self-call as well, might be useful in self-checks
     # keep ghost state on local machine of itself as well
-    GenServer.multi_call([Node.self() | Node.list()], SimpleElevator, :sync_state, state)
+    {replies, bad_nodes} = GenServer.multi_call([Node.self() | Node.list()], SimpleElevator, {:sync_state, state}, @sync_timeout)
+
+    IO.puts "Replies"
+    IO.inspect(replies)
+    IO.puts "Bad nodes"
+    IO.inspect(bad_nodes)
+
+    #handle_bad_nodes(bad_nodes, state)
 
     {:next_state, state, data}
   end
 
+  def handle_bad_nodes(bad_nodes, state) do
+    IO.puts "Handling bad nodes"
+    # might be "stuck" if nodes are cont. using long time to reply
+    # is fine, but might be handled (finite steps)
+    # though not needed for this project
+    {_replies, bad_nodes} = GenServer.multi_call([Node.self() | Node.list()], SimpleElevator, {:sync_state, state}, @sync_timeout)
+
+    handle_bad_nodes(bad_nodes, state)
+  end
+
+  def handle_bad_nodes([], _state) do
+    IO.puts "Done with bad nodes"
+    :ok
+  end
+
   # sync ghost state from other nodes (or itself)
-  def handle_event({:call, from}, {:get_other_state, other_state}, state, data) do
+  def handle_event({:call, from}, {:sync_state, other_state}, state, data) do
     IO.puts "Getting another state..."
     IO.inspect(from)
+
+    {_pid, {_ref, node_name}} = from
+
+    # update and merge ghost state
+    # everything "should" be up to date, as we are sending each individual event 
+      # TODO IMPLEMENT THIS!
+    # merge the requests
+    if not Map.has_key?(data, node_name) do
+      IO.puts "Ooh first time"
+      Map.put(data, node_name, other_state)
+    else 
+      IO.puts "Merging..."
+    end
+
 
     {:next_state, state, data, [{:reply, from, :ack}]}
   end

@@ -62,7 +62,7 @@ defmodule ElevatorFinder do
     if (post_connect_length - pre_connect_length) != 0 do
       IO.puts "Found new node: #{msg}"
       # sync
-      handle_share_state()
+      # handle_share_state()
     end
 
     {:noreply, {socket, node_name}}
@@ -77,7 +77,7 @@ defmodule ElevatorFinder do
   end
 
   def handle_share_state do
-    GenServer.call(SimpleElevator, :share_state)
+    GenServer.cast(SimpleElevator, :share_state)
   end
 
   def get_ip_tuple() do
