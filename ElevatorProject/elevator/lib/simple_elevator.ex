@@ -29,6 +29,7 @@ defmodule SimpleElevator do
     init_list_command = [init_request | init_list] # command request list
     init_list_call = [:invalid  | init_list] # first element of call down is invalid, last of call up
 
+    # local state
     state = %{
               :dir => :stop,
               :behaviour => :idle,
@@ -38,6 +39,7 @@ defmodule SimpleElevator do
               :call_up => Enum.reverse(init_list_call), # reversed such that last element is invalid
               :call_down => init_list_call
              }
+    # global states, ghost states
     data  = %{}
 
     GenStateMachine.start_link(__MODULE__, {state, data}, [name: __MODULE__])
@@ -55,9 +57,9 @@ defmodule SimpleElevator do
     {:next_state, state, data, [{:reply, from, state[:floor]}]}
   end
 
-  # Requests 
-  # command 
-  # cast 
+  # Requests
+  # command
+  # cast
   def handle_event(:cast, {:set_command, floor, new_state}, state, data) do
     # TODO: simplify
     state = Map.replace!(state, :command, List.replace_at(state[:command], floor, new_state))
@@ -117,7 +119,7 @@ defmodule SimpleElevator do
     {:next_state, state, data, [{:reply, from, state[:behaviour]}]}
   end
 
-  # door 
+  # door
   # cast
   def handle_event(:cast, {:set_door, door_state}, state, data) do
     state = Map.replace!(state, :door, door_state)
@@ -133,9 +135,9 @@ defmodule SimpleElevator do
   def handle_event(:cast, :share_state, state, data) do
     IO.puts "Start sharing state..."
 
-    # self-call as well, might be useful in self-checks
-    # keep ghost state on local machine of itself as well
-    {replies, bad_nodes} = GenServer.multi_call([Node.self() | Node.list()], SimpleElevator, {:sync_state, state}, @sync_timeout)
+    # only send to other nodes
+    # may need special handeling later? tough doubt it...
+    {replies, bad_nodes} = GenServer.multi_call(Node.list(), SimpleElevator, {:sync_state, state}, @sync_timeout)
 
     IO.puts "Replies"
     IO.inspect(replies)
@@ -152,7 +154,7 @@ defmodule SimpleElevator do
     # might be "stuck" if nodes are cont. using long time to reply
     # is fine, but might be handled (finite steps)
     # though not needed for this project
-    {_replies, bad_nodes} = GenServer.multi_call([Node.self() | Node.list()], SimpleElevator, {:sync_state, state}, @sync_timeout)
+    {_replies, bad_nodes} = GenServer.multi_call(Node.list(), SimpleElevator, {:sync_state, state}, @sync_timeout)
 
     handle_bad_nodes(bad_nodes, state)
   end
@@ -170,67 +172,44 @@ defmodule SimpleElevator do
     {_pid, {_ref, node_name}} = from
 
     # update and merge ghost state
-    # everything "should" be up to date, as we are sending each individual event 
+    # everything "should" be up to date, as we are sending each individual event
       # TODO IMPLEMENT THIS!
     # merge the requests
-    if not Map.has_key?(data, node_name) do
-      IO.puts "Ooh first time"
-      Map.put(data, node_name, other_state)
-    else 
-      IO.puts "Merging..."
+    IO.puts "Node name: "
+    IO.inspect(node_name)
+
+    IO.puts "Old data"
+    IO.inspect(data)
+
+    data = case Map.has_key?(data, node_name) do
+      true ->
+        # merge
+        IO.puts "Merging... (not implemented)"
+        data
+      false ->
+        # add new
+        IO.puts "Ooh first time"
+        data = Map.put(data, node_name, other_state)
+        data
+      _ ->
+        # well this shouldn't happen...
+        data
     end
 
+
+    IO.puts "New data"
+    IO.inspect(data)
 
     {:next_state, state, data, [{:reply, from, :ack}]}
   end
 
-  # use Agent
-
-  # def start do
-  #   Agent.start_link(fn -> %{
-  #     :floor => 0,
-  #     :dir => :stop,
-  #     :behaviour => :idle,
-  #     :requests => %{
-  #       :command => [false, false, false, false],
-  #       :call_up => [false, false, false, :invalid],
-  #       :call_down => [:invalid, false, false, false],
-  #       #:call => %{
-  #       #  :up => [false, false, false, :invalid],
-  #       #  :down => [:invalid, false, false, false]
-  #       #}
-  #     },
-  #     :config => %{
-  #       :clear_request_variant => :clear_all,
-  #       :open_door => 10
-  #     }
-  #   } end)
-  # end
-
-  # def get_floor(pid) do
-  #   Agent.get(pid, &Map.get(&1, :floor))
-  # end
-
-  # def set_floor(pid, value) do
-  #   Agent.update(pid, &Map.put(&1, :floor, value))
-  # end
-
-  #defstruct
-    #floor: 0,
-    #dir: :stop,
-    #behaviour: :idle,
-    #requests: %{
-      #command: [false, false, false, false],
-      #call_up: [false, false, false, :invalid],
-      #call_down: [:invalid, false, false, false],
-      #:call => %{
-      #  :up => [false, false, false, :invalid],
-      #  :down => [:invalid, false, false, false]
-      #}
-    #},
-    #config: %{
-      #clear_request_variant: :clear_all,
-      #open_door: 10
-    #}
+  def helper_merge_function(key, primary_value, secondary_value) do
+    value = case key do
+      :command    ->
+      :call_up    ->
+      :call_down  ->
+      _           -> primary_value
+    end
+  end
 
 end
