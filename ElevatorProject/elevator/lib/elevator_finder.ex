@@ -43,9 +43,10 @@ defmodule ElevatorFinder do
   end
 
   def handle_info(:broadcast, {socket, node_name}) do
-    #IO.puts("\nBroadcasting!")
-
     node_id = node_name <> "@" <> get_ip_string()
+
+    GenStateMachine.cast(SimpleElevator, :share_state)
+
     :gen_udp.send(socket, @broadcastIP, @finderPort, node_id)
     Process.send_after(self(), :broadcast, @broadcastWait)
 
@@ -89,7 +90,6 @@ defmodule ElevatorFinder do
   def get_ip_string() do
     ip_tuple = get_ip_tuple()
     ip_string = ip_tuple_to_string(ip_tuple)
-    #@elevName <> "@" <> ip_string
     ip_string
   end
 
