@@ -160,6 +160,7 @@ defmodule SimpleElevator do
   # add request
   def handle_event(:cast, {:send_request, floor, button_type}, state, data) do
     state = helper_update_state_request(state, floor, button_type)
+
     {replies, bad_nodes} = if (button_type != :command) do
       GenServer.multi_call(Node.list(), SimpleElevator, {:get_request, floor, button_type}, @sync_timeout)
     else
@@ -171,6 +172,7 @@ defmodule SimpleElevator do
     # TODO: check if reply length is correct, handle spending time in handle_bad_nodes
     # TODO: ask how to implement this best...
     GenServer.cast(Driver, {:set_order_button_light, button_type, floor, :on})
+    
     {replies, bad_nodes} = if (button_type != :command) do
       GenServer.multi_call(Node.list(), SimpleElevator, {:set_order_button_light, button_type, floor, :on})
     else

@@ -20,7 +20,7 @@ defmodule Events do
             pid
           end)
       end)
-    {:ok, buttons}
+    {:ok, [Events.Arrive.start_link(bottom_floor) | buttons]}
   end
 
 end
@@ -29,7 +29,7 @@ end
 defmodule Events.Button do
   use GenServer
 
-  @polling_period 1000
+  @polling_period 100 # 10 hz human reaction time
 
   def start_link(floor, button_type) do
     GenServer.start_link(__MODULE__, [floor, button_type])
@@ -60,59 +60,93 @@ end
 
 
 defmodule Events.Arrive do
+  use GenServer
 
-    @floor_timeout 100
+  @polling_period 100
 
-    def start_link(driver_pid, state_pid) do
-        Driver.set_floor_indicator(driver_pid, 0)
-        # TODO: change to use GenServer, and send_after (see udp_server module)
-        pid = spawn_link(fn -> find_floor(driver_pid, state_pid, 0) end)
-        {:ok, pid}
+  def start_link(start_floor) do
+    GenServer.start_link(__MODULE__, [start_floor])
+  end
+
+  def init([start_floor]) do
+    Events.Arrive.init(start_floor)
+  end
+
+  def init(start_floor) do
+    GenServer.cast(Driver, {:set_floor_indicator, start_floor})
+
+    Process.send_after(self(), :poll, @polling_period)
+
+    {:ok, start_floor}
+  end
+
+  def handle_info(:poll, floor) do
+    new_floor = GenServer.call(Driver, :get_floor_sensor_state)
+    if (new_floor != :between_floors) and (new_floor != floor) do
+      GenStateMachine.cast(SimpleElevator, {:set_floor, new_floor})
+
+      GenServer.cast(Driver, {:set_floor_indicator, new_floor})
+
+      new_floor
+    else
+      floor
     end
 
-    def find_floor(driver_pid, state_pid, old_floor) do
-        new_floor = Driver.get_floor_sensor_state(driver_pid)
+    Process.send_after(self(), :poll, @polling_period)
 
-        #IO.inspect new_floor
-        if new_floor != old_floor do
-            GenStateMachine.cast(SimpleElevator, {:set_floor, new_floor})
+    {:noreply, floor}
+  end
 
-            # TODO: clean up? this is messy and might not even work
-            direction = GenStateMachine.call(:get_dir)
-            floor_call = GenStateMachine.call({:get_command, new_floor})
-            floor_command_up = (GenStateMachine.call({:get_call_up, new_floor}) and direction == :up)
-            floor_command_down = (GenStateMachine.call({:get_call_down, new_floor}) and direction == :down)
-            if floor_call or floor_command_up or floor_command_down do
-                # stop for x amount of time
-                # open door for x amount of time
-                # Process.send(Events.Door, :open, [])
-
-                # clear requests for this floor
-                    # state and driver
-                    # command and call locally
-                    # calls globally
-
-                calculate_new_direction = :stop
-                Process.send_after(Events.Door, {:close, calculate_new_direction}, @floor_timeout)
-                # close door
-                # get new direction
-            end
-
-            # change the local state
-            # GenStateMachine.cast(state_pid, {:set_floor, new_floor})
-            # fulfill the request commands locally
-            # GenStateMachine.cast(state_pid, {:set_command, new_floor, false})
-            # fulfill the request calls globally
-            # GenServer.abcast() eventually
-            # GenStateMachine.cast(state_pid, {:set_call_up, new_floor, false})
-
-
-            Driver.set_floor_indicator(driver_pid, new_floor)
-        end
-        # send_after
-        #Process.sleep(@floor_timeout)
-        #find_floor(driver_pid, new_floor)
-    end
+    # def start_link(driver_pid, state_pid) do
+    #     Driver.set_floor_indicator(driver_pid, 0)
+    #     # TODO: change to use GenServer, and send_after (see udp_server module)
+    #     pid = spawn_link(fn -> find_floor(driver_pid, state_pid, 0) end)
+    #     {:ok, pid}
+    # end
+    #
+    # def find_floor(driver_pid, state_pid, old_floor) do
+    #     new_floor = Driver.get_floor_sensor_state(driver_pid)
+    #
+    #     #IO.inspect new_floor
+    #     if new_floor != old_floor do
+    #         GenStateMachine.cast(SimpleElevator, {:set_floor, new_floor})
+    #
+    #         # TODO: clean up? this is messy and might not even work
+    #         direction = GenStateMachine.call(:get_dir)
+    #         floor_call = GenStateMachine.call({:get_command, new_floor})
+    #         floor_command_up = (GenStateMachine.call({:get_call_up, new_floor}) and direction == :up)
+    #         floor_command_down = (GenStateMachine.call({:get_call_down, new_floor}) and direction == :down)
+    #         if floor_call or floor_command_up or floor_command_down do
+    #             # stop for x amount of time
+    #             # open door for x amount of time
+    #             # Process.send(Events.Door, :open, [])
+    #
+    #             # clear requests for this floor
+    #                 # state and driver
+    #                 # command and call locally
+    #                 # calls globally
+    #
+    #             calculate_new_direction = :stop
+    #             Process.send_after(Events.Door, {:close, calculate_new_direction}, @floor_timeout)
+    #             # close door
+    #             # get new direction
+    #         end
+    #
+    #         # change the local state
+    #         # GenStateMachine.cast(state_pid, {:set_floor, new_floor})
+    #         # fulfill the request commands locally
+    #         # GenStateMachine.cast(state_pid, {:set_command, new_floor, false})
+    #         # fulfill the request calls globally
+    #         # GenServer.abcast() eventually
+    #         # GenStateMachine.cast(state_pid, {:set_call_up, new_floor, false})
+    #
+    #
+    #         Driver.set_floor_indicator(driver_pid, new_floor)
+    #     end
+    #     # send_after
+    #     #Process.sleep(@floor_timeout)
+    #     #find_floor(driver_pid, new_floor)
+    # end
 
 
 
