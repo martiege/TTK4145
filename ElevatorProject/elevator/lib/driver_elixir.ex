@@ -22,7 +22,12 @@ defmodule Driver do
   end
 
   def init [address, port] do
+    IO.inspect(__MODULE__, label: "Initializing starting")
+
     {:ok, socket} = :gen_tcp.connect(address, port, [{:active, false}])
+
+    IO.inspect(__MODULE__, label: "Initializing finished")
+
     {:ok, socket}
   end
 

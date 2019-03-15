@@ -1,66 +1,63 @@
 defmodule Events do
+  use GenServer
 
-    # use GenStage
+  def start_link([bottom_floor, top_floor]) do
+    GenServer.start_link(__MODULE__, [bottom_floor, top_floor])
+  end
 
-    # def start_link() do
-    #     GenStage.start_link(__MODULE__, :no_state)
-    # end
+  def init([bottom_floor, top_floor]) do
+    Events.init(bottom_floor, top_floor)
+  end
 
-    # def init(state) do
-    #     {:consumer, state, subscribe_to: [Events.Arrive]}
-    # end
-
-    # def handle_events(events, _from, state) do
-    #     # handle events!
-    #     # pattern matching
-
-    #     {:noreply, [], state}
-    # end
+  def init(bottom_floor, top_floor) do
+    # lol how did this even work?
+    # TODO: remove above comment
+    buttons = Enum.map([:command, :call_up, :call_down],
+      fn button_type ->
+        Enum.map(bottom_floor..top_floor,
+          fn floor ->
+            {:ok, pid} = Events.Button.start_link(floor, button_type)
+            pid
+          end)
+      end)
+    {:ok, buttons}
+  end
 
 end
+
 
 defmodule Events.Button do
+  use GenServer
+
+  @polling_period 1000
+
+  def start_link(floor, button_type) do
+    GenServer.start_link(__MODULE__, [floor, button_type])
+  end
+
+  def init([floor, button_type]) do
+    Events.Button.init(floor, button_type)
+  end
+
+  def init(floor, button_type) do
+    Process.send_after(self(), :poll, @polling_period)
+
+    {:ok, {floor, button_type}}
+  end
+
+  def handle_info(:poll, {floor, button_type}) do
+    if GenServer.call(Driver, {:get_order_button_state, floor, button_type}) == 1 do
+      GenStateMachine.cast(SimpleElevator, {:send_request, floor, button_type})
+      # TODO: speed up polling_period when found a button press?
+    end
+
+    Process.send_after(self(), :poll, @polling_period)
+
+    {:noreply, {floor, button_type}}
+  end
 
 end
 
-defmodule Events.Button.Command do
-
-end
-
-defmodule Events.Button.CallUp do
-
-end
-
-defmodule Events.Button.CallDown do
-
-    # def start(pid) do
-    #     start(pid, 1, [])
-    # end
-
-    # def start(pid, floor, buttons) when floor <= 3 do
-    #     start(pid, floor + 1, [spawn(handle_call_down(pid, floor, Driver.get_order_button_state(pid, floor, :call_down))) | buttons])
-    # end
-
-    # def start(_pid, _floor, buttons) do
-    #     buttons
-    # end
-
-    # def handle_call_down(pid, floor, button_pressed) when button_pressed == 1 do
-    #     # add request
-    #     # send to the rest of the network
-    #     # turn light on
-    #     IO.puts("Button called down nn floor: #{floor}")
-    #     Process.sleep(1000)
-    #     handle_call_down(pid, floor, Driver.get_order_button_state(pid, floor, :call_down))
-    # end
-
-    # def handle_call_down(pid, floor, _button_pressed) do
-    #     IO.puts("Waiting for button on floor: #{floor}")
-    #     Process.sleep(1000)
-    #     handle_call_down(pid, floor, Driver.get_order_button_state(pid, floor, :call_down))
-    # end
-
-end
 
 defmodule Events.Arrive do
 
@@ -80,7 +77,7 @@ defmodule Events.Arrive do
         if new_floor != old_floor do
             GenStateMachine.cast(SimpleElevator, {:set_floor, new_floor})
 
-            # TODO: clean up
+            # TODO: clean up? this is messy and might not even work
             direction = GenStateMachine.call(:get_dir)
             floor_call = GenStateMachine.call({:get_command, new_floor})
             floor_command_up = (GenStateMachine.call({:get_call_up, new_floor}) and direction == :up)
@@ -88,7 +85,7 @@ defmodule Events.Arrive do
             if floor_call or floor_command_up or floor_command_down do
                 # stop for x amount of time
                 # open door for x amount of time
-                Process.send(Events.Door, :open, [])
+                # Process.send(Events.Door, :open, [])
 
                 # clear requests for this floor
                     # state and driver
