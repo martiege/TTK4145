@@ -1,0 +1,11 @@
+TODO
+  Change from using GenServer.cast in ElevatorFinder and event to use SimpleElevator functions?
+
+  Add cost function
+
+  Add optimization algorithm
+    Execute cost function for each request
+
+    Communicate which elevator takes which request?
+      Might be solved if all elevators are quickly updated when the request is finished
+        Ask for help

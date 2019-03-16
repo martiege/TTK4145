@@ -12,17 +12,24 @@ defmodule Events do
   def init(bottom_floor, top_floor) do
     # lol how did this even work?
     # TODO: remove above comment
-    buttons = Enum.map([:command, :call_up, :call_down],
+    # TODO: clean up bellow
+    button_floor = %{
+      :command => bottom_floor..top_floor,
+      :call_up => bottom_floor..(top_floor - 1),
+      :call_down => (bottom_floor + 1)..top_floor
+    }
+    buttons = Enum.map(Map.keys(button_floor), # [:command, :call_up, :call_down],
       fn button_type ->
-        Enum.map(bottom_floor..top_floor,
+        Enum.map(button_floor[button_type], # bottom_floor..top_floor,
           fn floor ->
             {:ok, pid} = Events.Button.start_link(floor, button_type)
             pid
+            # IO.puts "Button type: #{button_type}, Floor: #{floor}"
+            # {button_type, floor}
           end)
       end)
-    {:ok, [Events.Arrive.start_link(bottom_floor) | buttons]}
+    {:ok, [Events.Arrive.start_link(bottom_floor, bottom_floor, top_floor) | buttons]}
   end
-
 end
 
 
@@ -64,28 +71,35 @@ defmodule Events.Arrive do
 
   @polling_period 100
 
-  def start_link(start_floor) do
-    GenServer.start_link(__MODULE__, [start_floor])
+  def start_link(start_floor, bottom_floor, top_floor) do
+    GenServer.start_link(__MODULE__, [start_floor, bottom_floor, top_floor])
   end
 
-  def init([start_floor]) do
-    Events.Arrive.init(start_floor)
+  def init([start_floor, bottom_floor, top_floor]) do
+    Events.Arrive.init(start_floor, bottom_floor, top_floor)
   end
 
-  def init(start_floor) do
+  def init(start_floor, bottom_floor, top_floor) do
     GenServer.cast(Driver, {:set_floor_indicator, start_floor})
 
     Process.send_after(self(), :poll, @polling_period)
 
-    {:ok, start_floor}
+    {:ok, {start_floor, bottom_floor, top_floor}}
   end
 
-  def handle_info(:poll, floor) do
+  def handle_info(:poll, {floor, bottom_floor, top_floor}) do
+    # TODO: poll at different periods if new floor found?
+
     new_floor = GenServer.call(Driver, :get_floor_sensor_state)
-    if (new_floor != :between_floors) and (new_floor != floor) do
+    floor = if (new_floor != :between_floors) and (new_floor != floor) do
       GenStateMachine.cast(SimpleElevator, {:set_floor, new_floor})
 
       GenServer.cast(Driver, {:set_floor_indicator, new_floor})
+
+      if (new_floor == bottom_floor) or (new_floor == top_floor) do
+        # if at the top or bottom floors, stop anyways. no out of bounds.
+        GenServer.cast(Driver, {:set_motor_direction, :stop})
+      end
 
       new_floor
     else
@@ -94,7 +108,7 @@ defmodule Events.Arrive do
 
     Process.send_after(self(), :poll, @polling_period)
 
-    {:noreply, floor}
+    {:noreply, {floor, bottom_floor, top_floor}}
   end
 
     # def start_link(driver_pid, state_pid) do
@@ -193,41 +207,41 @@ defmodule Events.Arrive do
 
 end
 
-defmodule Events.Door do
-
-    use GenServer
-
-    def start_link do
-        GenServer.start_link(__MODULE__, [], [name: __MODULE__])
-    end
-
-    def init(_) do
-        door_state = GenStateMachine.call(SimpleElevator, :get_door)
-
-        {:ok, door_state}
-    end
-
-    def handle_info(:open, :closed) do
-        GenServer.cast(Driver, {:set_motor_direction, :stop})
-        GenServer.cast(Driver, {:set_door_open_light, :on})
-
-        # changes to the state
-        GenStateMachine.cast(SimpleElevator, {:set_dir, :stop})
-        GenStateMachine.cast(SimpleElevator, {:set_door, :open})
-
-        {:noreply, :open}
-    end
-
-    def handle_info({:close, dir}, :open) do
-        GenServer.cast(Driver, {:set_door_open_light, :on})
-        GenServer.cast(Driver, {:set_motor_direction, dir})
-
-        # changes to the state
-        GenStateMachine.cast(SimpleElevator, {:set_dir, dir})
-        GenStateMachine.cast(SimpleElevator, {:set_door, :closed})
-
-        {:noreply, :closed}
-    end
-
-
-end
+# defmodule Events.Door do
+#
+#     use GenServer
+#
+#     def start_link do
+#         GenServer.start_link(__MODULE__, [], [name: __MODULE__])
+#     end
+#
+#     def init(_) do
+#         door_state = GenStateMachine.call(SimpleElevator, :get_door)
+#
+#         {:ok, door_state}
+#     end
+#
+#     def handle_info(:open, :closed) do
+#         GenServer.cast(Driver, {:set_motor_direction, :stop})
+#         GenServer.cast(Driver, {:set_door_open_light, :on})
+#
+#         # changes to the state
+#         GenStateMachine.cast(SimpleElevator, {:set_dir, :stop})
+#         GenStateMachine.cast(SimpleElevator, {:set_door, :open})
+#
+#         {:noreply, :open}
+#     end
+#
+#     def handle_info({:close, dir}, :open) do
+#         GenServer.cast(Driver, {:set_door_open_light, :on})
+#         GenServer.cast(Driver, {:set_motor_direction, dir})
+#
+#         # changes to the state
+#         GenStateMachine.cast(SimpleElevator, {:set_dir, dir})
+#         GenStateMachine.cast(SimpleElevator, {:set_door, :closed})
+#
+#         {:noreply, :closed}
+#     end
+#
+#
+# end
