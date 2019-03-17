@@ -95,9 +95,15 @@ defmodule Events.Arrive do
       GenStateMachine.cast(SimpleElevator, {:set_floor, new_floor})
 
       GenServer.cast(Driver, {:set_floor_indicator, new_floor})
+      # TODO: also update the SimpleElevator GenStateMachine
 
       if (new_floor == bottom_floor) or (new_floor == top_floor) do
         # if at the top or bottom floors, stop anyways. no out of bounds.
+        # TODO: maybe add this to the SimpleElevator call?
+        GenServer.cast(Driver, {:set_motor_direction, :stop})
+      end
+
+      if GenStateMachine.call(SimpleElevator, {:should_stop, floor}) do
         GenServer.cast(Driver, {:set_motor_direction, :stop})
       end
 
