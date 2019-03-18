@@ -87,6 +87,8 @@ defmodule SimpleElevator do
   # cast
   def handle_event(:cast, {:set_floor, floor}, state, data) do
     state = Map.replace!(state, :floor, floor)
+    GenServer.cast(Driver, {:set_floor_indicator, floor})
+
     {:next_state, state, data}
   end
 
@@ -135,8 +137,10 @@ defmodule SimpleElevator do
 
   # direction
   # cast
-  def handle_event(:cast, {:set_dir, dir}, state, data) do
+  def handle_event(:cast, {:set_motor_direction, dir}, state, data) do
     state = Map.replace!(state, :dir, dir)
+    GenServer.cast(Driver, {:set_motor_direction, dir})
+
     {:next_state, state, data}
   end
 
@@ -157,6 +161,21 @@ defmodule SimpleElevator do
     {:next_state, state, data, [{:reply, from, state[:behaviour]}]}
   end
 
+  # clear request
+  # def handle_event(:cast, :clear_request, state, data) do
+  #   case state[:dir] do
+  #     :up   -> state[:dir]
+  #     :down ->
+  #     :stop ->
+  #   end
+  #
+  #   case state[:floor] do
+  #
+  #   end
+  # end
+  #
+  # def helper_clear_request
+
   # add request
   def handle_event(:cast, {:send_request, floor, button_type}, state, data) do
     state = helper_update_state_request(state, floor, button_type)
@@ -172,7 +191,7 @@ defmodule SimpleElevator do
     # TODO: check if reply length is correct, handle spending time in handle_bad_nodes
     # TODO: ask how to implement this best...
     GenServer.cast(Driver, {:set_order_button_light, button_type, floor, :on})
-    
+
     {replies, bad_nodes} = if (button_type != :command) do
       GenServer.multi_call(Node.list(), SimpleElevator, {:set_order_button_light, button_type, floor, :on})
     else
@@ -182,6 +201,19 @@ defmodule SimpleElevator do
     replies = replies ++ handle_bad_nodes(bad_nodes, {:set_order_button_light, button_type, floor, :on})
 
     {:next_state, state, data}
+  end
+
+  def handle_event({:call, from}, {:should_stop, floor}, state, data) do
+    global_stop = case state[:dir] do
+      :up   -> elem(Enum.at(state[:call_up], floor), 0)
+      :down -> elem(Enum.at(state[:call_down], floor), 0)
+      :stop -> elem(Enum.at(state[:call_up], floor), 0) or elem(Enum.at(state[:call_down], floor), 0)
+      what  -> IO.inspect(what, "Something happened in should_stop")
+    end
+
+    local_stop = elem(Enum.at(state[:command], floor), 0)
+
+    {:next_state, state, data, [{:reply, from, global_stop or local_stop}]}
   end
 
   # call-wrapper around Driver set_order_button_light
