@@ -14,30 +14,30 @@ defmodule SimpleElevator do
   """
   @sync_timeout 100
   @door_timeout 5000
-  @base_cost 100
-  @top_floor 3
-  @base_floor 0
+  # @base_cost 100
+  # @top_floor 3
+  # @base_floor 0
 
   use GenStateMachine
 
-  def start_link([]) do
-    SimpleElevator.start_link()
+  def start_link([bottom_floor, top_floor]) do
+    SimpleElevator.start_link(bottom_floor, top_floor)
   end
 
-  def start_link() do
-      GenStateMachine.start_link(__MODULE__, [], [name: __MODULE__])
+  def start_link(bottom_floor, top_floor) do
+    GenStateMachine.start_link(__MODULE__, [bottom_floor, top_floor], [name: __MODULE__])
   end
 
-  def init([]) do
-    SimpleElevator.init()
+  def init([bottom_floor, top_floor]) do
+    SimpleElevator.init(bottom_floor, top_floor)
   end
 
-  def init() do
+  def init(bottom_floor, top_floor) do
     IO.inspect(__MODULE__, label: "Initializing starting")
 
 
     # local state
-    state = SimpleElevator.initialize_state()
+    state = SimpleElevator.initialize_state(bottom_floor, top_floor)
     # global states, ghost states
     data  = %{}
 
@@ -46,22 +46,25 @@ defmodule SimpleElevator do
     {:ok, state, data}
   end
 
-  def initialize_state() do
-    init_request        = {false, @base_cost} # request base, initialized as false and base cost
+  def initialize_state(bottom_floor, top_floor) do
+    # init_request        = {false, @base_cost} # request base, initialized as false and base cost
 
-    init_list           = List.duplicate(init_request, @top_floor - @base_floor) # request list base
-    init_list_command   = [init_request | init_list] # command request list
-    init_list_call_down = [:invalid] ++ init_list # first element of call down is invalid, last of call up
-    init_list_call_up   = init_list ++ [:invalid]
+    # init_list           = List.duplicate(false, @top_floor - @base_floor) # request list base
+    # init_list_command   = [false | init_list] # command request list
+    # init_list_call_down = [:invalid] ++ init_list # first element of call down is invalid, last of call up
+    # init_list_call_up   = init_list ++ [:invalid]
+
+    list = List.duplicate(false, top_floor - bottom_floor + 1)
 
     %{
       :dir => :stop,
       :behaviour => :idle,
       :door => :closed,
       :floor => 0,
-      :command => init_list_command,
-      :call_up => init_list_call_up,
-      :call_down => init_list_call_down
+      :command => list,      # init_list_command,
+      :call_up => list,      # init_list_call_up,
+      :call_down => list,    # init_list_call_down,
+      :config => %{:bottom_floor => bottom_floor, :top_floor => top_floor}
     }
   end
 
@@ -161,21 +164,6 @@ defmodule SimpleElevator do
     {:next_state, state, data, [{:reply, from, state[:behaviour]}]}
   end
 
-  # clear request
-  # def handle_event(:cast, :clear_request, state, data) do
-  #   case state[:dir] do
-  #     :up   -> state[:dir]
-  #     :down ->
-  #     :stop ->
-  #   end
-  #
-  #   case state[:floor] do
-  #
-  #   end
-  # end
-  #
-  # def helper_clear_request
-
   # add request
   def handle_event(:cast, {:send_request, floor, button_type}, state, data) do
     state = helper_update_state_request(state, floor, button_type)
@@ -205,13 +193,13 @@ defmodule SimpleElevator do
 
   def handle_event({:call, from}, {:should_stop, floor}, state, data) do
     global_stop = case state[:dir] do
-      :up   -> elem(Enum.at(state[:call_up], floor), 0)
-      :down -> elem(Enum.at(state[:call_down], floor), 0)
-      :stop -> elem(Enum.at(state[:call_up], floor), 0) or elem(Enum.at(state[:call_down], floor), 0)
+      :up   -> Enum.at(state[:call_up], floor)
+      :down -> Enum.at(state[:call_down], floor)
+      :stop -> Enum.at(state[:call_up], floor) or Enum.at(state[:call_down], floor)
       what  -> IO.inspect(what, "Something happened in should_stop")
     end
 
-    local_stop = elem(Enum.at(state[:command], floor), 0)
+    local_stop = Enum.at(state[:command], floor)
 
     {:next_state, state, data, [{:reply, from, global_stop or local_stop}]}
   end
@@ -240,8 +228,8 @@ defmodule SimpleElevator do
 
   defp helper_update_request_list(request_list, floor) do
     # TODO: recalculate cost!
-    {_, cost} = Enum.at(request_list, floor)
-    List.replace_at(request_list, floor, {true, cost})
+    # {_, cost} = Enum.at(request_list, floor)
+    List.replace_at(request_list, floor, true)
   end
 
   # clear requests
@@ -292,19 +280,19 @@ defmodule SimpleElevator do
 
   def helper_clear_request(state, floor, request) do
     req_state = Map.get(state, request)
-    cleared = helper_clear_request_invalid(Enum.at(req_state, floor))
-    cleard_list = List.replace_at(req_state, floor, cleared)
+    # cleared = helper_clear_request_invalid(Enum.at(req_state, floor))
+    cleard_list = List.replace_at(req_state, floor, false)
     state = Map.replace!(state, request, cleard_list)
     state
   end
 
-  def helper_clear_request_invalid({_bool, cost}) do
-    {true, cost}
-  end
-
-  def helper_clear_request_invalid(:invalid) do
-    :invalid
-  end
+  # def helper_clear_request_invalid({_bool, cost}) do
+  #   false
+  # end
+  #
+  # def helper_clear_request_invalid(:invalid) do
+  #   :invalid
+  # end
 
   # door
   def handle_event(:cast, {:open_door, floor}, state, data) do
@@ -449,7 +437,8 @@ defmodule SimpleElevator do
         primary_state
       (not primary_valid) and (not secondary_valid) ->
         # empty state in case of all invalid states
-        SimpleElevator.initialize_state()
+        IO.inspect(primary_state, "Primary state")
+        IO.inspect(secondary_state, "Secondary state")
     end
   end
 

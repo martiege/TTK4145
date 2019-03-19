@@ -1,36 +1,47 @@
 defmodule Events do
-  use GenServer
+  use Supervisor
 
   # TODO: use supervisor
+  # TODO: change internal floor, top and bottom floors to calls to the SimpleElevator
 
-  def start_link([bottom_floor, top_floor]) do
-    GenServer.start_link(__MODULE__, [bottom_floor, top_floor])
+  def start_link(bottom_floor, top_floor) do
+    Supervisor.start_link(__MODULE__, [bottom_floor, top_floor])
   end
+
+  # def init([bottom_floor, top_floor]) do
+  #   Events.init(bottom_floor, top_floor)
+  # end
 
   def init([bottom_floor, top_floor]) do
-    Events.init(bottom_floor, top_floor)
-  end
-
-  def init(bottom_floor, top_floor) do
-    # lol how did this even work?
-    # TODO: remove above comment
-    # TODO: clean up bellow
+    # TODO: clean up bellow, maybe add button_floor range to the config in SimpleElevator?
     button_floor = %{
       :command => bottom_floor..top_floor,
       :call_up => bottom_floor..(top_floor - 1),
       :call_down => (bottom_floor + 1)..top_floor
     }
-    buttons = Enum.map(Map.keys(button_floor), # [:command, :call_up, :call_down],
+
+    children = Enum.map(Map.keys(button_floor),
       fn button_type ->
-        Enum.map(button_floor[button_type], # bottom_floor..top_floor,
+        Enum.map(button_floor[button_type],
           fn floor ->
-            {:ok, pid} = Events.Button.start_link(floor, button_type)
-            pid
-            # IO.puts "Button type: #{button_type}, Floor: #{floor}"
-            # {button_type, floor}
+            %{ # specify child spec
+              id: (to_string(button_type) <> to_string(floor)) |> String.to_atom(),
+              start: {Events.Button, :start_link, [floor, button_type]},
+              restart: :permanent,
+              shutdown: 5000,
+              type: :worker
+            }
           end)
-      end)
-    {:ok, [Events.Arrive.start_link(bottom_floor, bottom_floor, top_floor) | buttons]}
+      end) |> List.flatten() # finally, flatten the list
+
+    children = [ %{ # specify child spec for the Events.Arrive module and concat it
+    id: Events.Arrive,
+    start: {Events.Arrive, :start_link, [bottom_floor, bottom_floor, top_floor]},
+    restart: :permanent,
+    shutdown: 5000,
+    type: :worker} | children]
+
+    Supervisor.init(children, strategy: :one_for_one)
   end
 end
 
@@ -45,10 +56,6 @@ defmodule Events.Button do
   end
 
   def init([floor, button_type]) do
-    Events.Button.init(floor, button_type)
-  end
-
-  def init(floor, button_type) do
     Process.send_after(self(), :poll, @polling_period)
 
     {:ok, {floor, button_type}}
@@ -79,11 +86,6 @@ defmodule Events.Arrive do
   end
 
   def init([start_floor, bottom_floor, top_floor]) do
-    Events.Arrive.init(start_floor, bottom_floor, top_floor)
-  end
-
-  def init(start_floor, bottom_floor, top_floor) do
-    # GenServer.cast(Driver, {:set_floor_indicator, start_floor})
     GenStateMachine.cast(SimpleElevator, {:set_floor, start_floor})
 
     Process.send_after(self(), :poll, @polling_period)
