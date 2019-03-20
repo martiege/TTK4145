@@ -303,6 +303,7 @@ defmodule SimpleElevator do
 
     state = Map.replace!(state, :dir, :stop)
     state = Map.replace!(state, :door, :open)
+    state = Map.replace!(state, :behaviour, :open_door)
 
     # remove the requests here and globally
     # GenStateMachine.call(SimpleElevator, {:clear, floor, self()}, @sync_timeout)
@@ -323,6 +324,9 @@ defmodule SimpleElevator do
 
     state = Map.replace!(state, :dir, :stop) # change to move to next request
     state = Map.replace!(state, :door, :closed)
+    state = Map.replace!(state, :door, :idle)
+
+    # TODO: Cost 
 
     {:next_state, state, data}
   end
