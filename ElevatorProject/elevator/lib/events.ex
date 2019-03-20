@@ -24,6 +24,7 @@ defmodule Events do
       fn button_type ->
         Enum.map(button_floor[button_type],
           fn floor ->
+            GenServer.cast(Driver, {:set_order_button_light, button_type, floor, :off})
             %{ # specify child spec
               id: (to_string(button_type) <> to_string(floor)) |> String.to_atom(),
               start: {Events.Button, :start_link, [floor, button_type]},
@@ -95,16 +96,23 @@ defmodule Events.Arrive do
 
   def handle_info(:poll, {floor, bottom_floor, top_floor}) do
     # TODO: poll at different periods if new floor found?
-
+    # TODO: open door when a request is issued on this floor 
+    
+    if GenStateMachine.call(SimpleElevator, {:requests_at_floor, floor}) do
+      GenStateMachine.cast(SimpleElevator, {:open_door, floor})
+    end
+    
     new_floor = GenServer.call(Driver, :get_floor_sensor_state)
+    
     floor = if (new_floor != :between_floors) and (new_floor != floor) do
       GenStateMachine.cast(SimpleElevator, {:set_floor, new_floor})
 
       # GenServer.cast(Driver, {:set_floor_indicator, new_floor})
       # TODO: also update the SimpleElevator GenStateMachine
 
-      if GenStateMachine.call(SimpleElevator, {:should_stop, floor}) do
-        GenStateMachine.cast(SimpleElevator, {:set_motor_direction, :stop})
+      if GenStateMachine.call(SimpleElevator, {:should_stop, new_floor}) do
+        # GenStateMachine.cast(SimpleElevator, {:set_motor_direction, :stop})
+        GenStateMachine.cast(SimpleElevator, {:open_door, new_floor})
         # GenServer.cast(Driver, {:set_motor_direction, :stop})
       end
 

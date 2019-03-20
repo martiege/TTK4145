@@ -13,7 +13,7 @@ defmodule SimpleElevator do
 
   """
   @sync_timeout 100
-  @door_timeout 5000
+  @door_timeout 2000
   # @base_cost 100
   # @top_floor 3
   # @base_floor 0
@@ -192,11 +192,18 @@ defmodule SimpleElevator do
   end
 
   def handle_event({:call, from}, {:should_stop, floor}, state, data) do
+    IO.inspect(state)
     global_stop = case state[:dir] do
-      :up   -> Enum.at(state[:call_up], floor)
-      :down -> Enum.at(state[:call_down], floor)
-      :stop -> Enum.at(state[:call_up], floor) or Enum.at(state[:call_down], floor)
-      what  -> IO.inspect(what, "Something happened in should_stop")
+      :up   -> 
+        Enum.at(state[:call_up], floor )
+      :down -> 
+        Enum.at(state[:call_down], floor)
+      :stop -> 
+        Enum.at(state[:call_up], floor) or Enum.at(state[:call_down], floor)
+      what  -> 
+        IO.puts("Something happened in should_stop")
+        IO.inspect(what)
+        false
     end
 
     local_stop = Enum.at(state[:command], floor)
@@ -237,21 +244,30 @@ defmodule SimpleElevator do
     IO.puts "Cleaning floor #{floor}"
 
     # make this it's own function such that we can call this independantly
-    helper_clear_requests(floor, node_name, data)
+    data = helper_clear_requests_data(floor, node_name, data)
+    state = helper_clear_requests_state(floor, state)
 
     IO.puts "Done cleaning"
     {:next_state, state, data, [{:reply, from, :cleared}]}
   end
 
-  def helper_clear_requests(floor, node_name, data) do
+  def helper_clear_requests_state(floor, state) do
+    IO.puts "State: "
+    IO.inspect(state)
+
+    state = helper_clear_requests(state, floor)
+    helper_clear_request(state, floor, :command)
+  end
+
+  def helper_clear_requests_data(floor, node_name, data) do
     IO.puts "Data: "
     IO.inspect(data)
 
-    for node <- [self() | Node.list()] do
+    for node <- Node.list() do
       IO.puts "Node: "
       IO.inspect(node)
 
-      data = if Map.has_key?(data, node) do
+      data = if Map.has_key?(data, node)do
 
         node_state = Map.get(data, node)
 
@@ -268,21 +284,26 @@ defmodule SimpleElevator do
 
         data = Map.replace!(data, node, node_state)
         data
+      else
+        data
       end
     end
+
+    data
   end
 
   def helper_clear_requests(state, floor) do
     state = helper_clear_request(state, floor, :call_up)
-    state = helper_clear_request(state, floor, :call_up)
+    state = helper_clear_request(state, floor, :call_down)
     state
   end
 
-  def helper_clear_request(state, floor, request) do
-    req_state = Map.get(state, request)
+  def helper_clear_request(state, floor, button_type) do
+    req_state = Map.get(state, button_type)
     # cleared = helper_clear_request_invalid(Enum.at(req_state, floor))
     cleard_list = List.replace_at(req_state, floor, false)
-    state = Map.replace!(state, request, cleard_list)
+    GenServer.cast(Driver, {:set_order_button_light, button_type, floor, :off})
+    state = Map.replace!(state, button_type, cleard_list)
     state
   end
 
@@ -294,6 +315,11 @@ defmodule SimpleElevator do
   #   :invalid
   # end
 
+  def handle_event({:call, from}, {:requests_at_floor, floor}, state, data) do
+    request = Enum.at(state[:command], floor) or Enum.at(state[:call_down], floor) or Enum.at(state[:call_up], floor)
+    {:next_state, state, data, [{:reply, from, request}]}
+  end
+
   # door
   def handle_event(:cast, {:open_door, floor}, state, data) do
     Process.send_after(self(), :close_door, @door_timeout)
@@ -301,14 +327,17 @@ defmodule SimpleElevator do
     GenServer.cast(Driver, {:set_motor_direction, :stop})
     GenServer.cast(Driver, {:set_door_open_light, :on})
 
-    state = Map.replace!(state, :dir, :stop)
+    # state = Map.replace!(state, :dir, :stop)
     state = Map.replace!(state, :door, :open)
     state = Map.replace!(state, :behaviour, :open_door)
 
     # remove the requests here and globally
     # GenStateMachine.call(SimpleElevator, {:clear, floor, self()}, @sync_timeout)
-    helper_clear_requests(floor, self(), data)
+    data = helper_clear_requests_data(floor, self(), data)
+    state = helper_clear_requests_state(floor, state)
     {replies, bad_nodes} = GenServer.multi_call(Node.list(), SimpleElevator, {:clear, floor, self()}, @sync_timeout)
+
+    state = helper_clear_requests_state(floor, state)
 
     IO.puts "Replies"
     IO.inspect(replies)
@@ -319,12 +348,16 @@ defmodule SimpleElevator do
   end
 
   def handle_event(:info, :close_door, state, data) do
-    GenServer.cast(Driver, {:set_motor_direction, :stop})
     GenServer.cast(Driver, {:set_door_open_light, :off})
+    GenServer.cast(Driver, {:set_motor_direction, state[:dir]})
 
-    state = Map.replace!(state, :dir, :stop) # change to move to next request
+    # state = Map.replace!(state, :dir, :stop) # change to move to next request
     state = Map.replace!(state, :door, :closed)
-    state = Map.replace!(state, :door, :idle)
+    state = if state[:dir] == :stop do
+      Map.replace!(state, :door, :idle)  
+    else
+      Map.replace!(state, :door, :moving)
+    end
 
     # TODO: Cost 
 
@@ -455,12 +488,8 @@ defmodule SimpleElevator do
   end
 
 
-  defp helper_merge_element({{p_bool, p_cost}, {s_bool, s_cost}}) do
-    {p_bool and s_bool, max(p_cost, s_cost)}
-  end
-
-  defp helper_merge_element({:invalid, :invalid}) do
-    :invalid
+  defp helper_merge_element({p_bool, s_bool}) do
+    p_bool or s_bool
   end
 
   defp handle_bad_nodes(bad_nodes, message) when length(bad_nodes) != 0 do
