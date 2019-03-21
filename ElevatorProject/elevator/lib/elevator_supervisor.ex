@@ -15,7 +15,7 @@ defmodule ElevatorSupervisor do
     children = [
       %{
         id: Driver,
-        start: {Driver, :start_link, [{10, 24, 34, 141}, driver_port]}, # ElevatorFinder.get_ip_tuple()
+        start: {Driver, :start_link, [ElevatorFinder.get_ip_tuple(), driver_port]}, 
         restart: :permanent,
         shutdown: 5000,
         type: :worker

@@ -51,9 +51,10 @@ defmodule ElevatorFinder do
     node_id = node_name <> "@" <> ElevatorFinder.get_ip_string()
 
     :gen_udp.send(socket, @broadcastIP, @finderPort, node_id)
-    Process.send_after(self(), :broadcast, @broadcastWait)
 
-    # GenStateMachine.cast(SimpleElevator, :share_state)
+    GenStateMachine.call(SimpleElevator, :share_state)
+
+    Process.send_after(self(), :broadcast, @broadcastWait)
 
     {:noreply, {socket, node_name}}
   end
@@ -77,6 +78,9 @@ defmodule ElevatorFinder do
       # replies = replies ++ handle_bad_nodes(bad_nodes, node_name)
     end
 
+    # lol just realized this if will never happen, unless the very instant
+    # we try to connect to another node (already connected to this node)
+    # we loose another node..........
     if (post_connect_length - pre_connect_length) < 0 do
       IO.puts "Lost a node"
       IO.inspect(Node.list(), label: "List of Nodes")
