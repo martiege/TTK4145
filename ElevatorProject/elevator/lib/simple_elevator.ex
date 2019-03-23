@@ -389,9 +389,9 @@ defmodule SimpleElevator do
     # state = Map.replace!(state, :dir, :stop) # change to move to next request
     state = Map.replace!(state, :door, :closed)
     state = if state[:dir] == :stop do
-      Map.replace!(state, :door, :idle)
+      Map.replace!(state, :behaviour, :idle)
     else
-      Map.replace!(state, :door, :moving)
+      Map.replace!(state, :behaviour, :moving)
     end
 
     # TODO: Cost

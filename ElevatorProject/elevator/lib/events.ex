@@ -123,7 +123,7 @@ defmodule Events.Arrive do
         GenStateMachine.cast(SimpleElevator, {:set_motor_direction, :stop})
       end
 
-      GenStateMachine.cast(SimpleElevator, :share_state)
+      GenStateMachine.call(SimpleElevator, :share_state)
 
       new_floor
     else
