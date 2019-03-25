@@ -52,7 +52,8 @@ defmodule ElevatorFinder do
 
     :gen_udp.send(socket, @broadcastIP, @finderPort, node_id)
 
-    GenStateMachine.call(SimpleElevator, :share_state)
+    # GenStateMachine.call(SimpleElevator, :share_state)
+    GenServer.call(ElevatorState, :share_state)
 
     Process.send_after(self(), :broadcast, @broadcastWait)
 
@@ -72,18 +73,10 @@ defmodule ElevatorFinder do
       IO.puts "Found new node: #{msg}"
       # sync
       # merge
-      # GenStateMachine.cast(SimpleElevator, :get_backup)
+      GenServer.cast(ElevatorState, :get_backup)
       # {replies, bad_nodes} = GenServer.multi_call(Node.list(), SimpleElevator, {:get_backup, node_name}, @shareStateWait)
       #
       # replies = replies ++ handle_bad_nodes(bad_nodes, node_name)
-    end
-
-    # lol just realized this if will never happen, unless the very instant
-    # we try to connect to another node (already connected to this node)
-    # we loose another node..........
-    if (post_connect_length - pre_connect_length) < 0 do
-      IO.puts "Lost a node"
-      IO.inspect(Node.list(), label: "List of Nodes")
     end
 
     {:noreply, {socket, node_name}}

@@ -13,6 +13,7 @@ defmodule Events do
   # end
 
   def init([bottom_floor, top_floor]) do
+    IO.inspect(__MODULE__, label: "Initializing starting")
     # TODO: clean up bellow, maybe add button_floor range to the config in SimpleElevator?
     button_floor = %{
       :command => bottom_floor..top_floor,
@@ -42,6 +43,8 @@ defmodule Events do
     shutdown: 5000,
     type: :worker} | children]
 
+    IO.inspect(__MODULE__, label: "Initializing finished")
+
     Supervisor.init(children, strategy: :one_for_one)
   end
 end
@@ -64,9 +67,11 @@ defmodule Events.Button do
 
   def handle_info(:poll, {floor, button_type}) do
     if GenServer.call(Driver, {:get_order_button_state, floor, button_type}) == 1 do
-      GenStateMachine.cast(SimpleElevator, {:send_request, floor, button_type})
-      GenStateMachine.call(SimpleElevator, :share_state)
-      # TODO: speed up polling_period when found a button press?
+      GenServer.cast(ElevatorState, {:send_request, floor, button_type})
+      GenServer.cast(RequestManager, {:add_request, {button_type, floor}})
+      # GenStateMachine.cast(SimpleElevator, {:send_request, floor, button_type})
+      # GenStateMachine.call(SimpleElevator, :share_state)
+      # TODO: change polling_period when found a button press?
     end
 
     Process.send_after(self(), :poll, @polling_period)
@@ -87,7 +92,8 @@ defmodule Events.Arrive do
   end
 
   def init([start_floor, bottom_floor, top_floor]) do
-    GenStateMachine.cast(SimpleElevator, {:set_floor, start_floor})
+    # GenStateMachine.cast(SimpleElevator, {:set_floor, start_floor})
+    GenServer.cast(ElevatorState, {:set_floor, start_floor})
 
     Process.send_after(self(), :poll, @polling_period)
 
@@ -95,35 +101,31 @@ defmodule Events.Arrive do
   end
 
   def handle_info(:poll, {floor, bottom_floor, top_floor}) do
-    # TODO: poll at different periods if new floor found?
-
-    # TODO: open door when a request is issued on this floor
-    # this actually doesn't work properly
-    # if GenStateMachine.call(SimpleElevator, {:requests_at_floor, floor}) do
-    #   GenStateMachine.cast(SimpleElevator, {:open_door, floor})
-    # end
+    state = GenServer.call(ElevatorState, :get_state)
+    {request_list, _} = GenServer.multi_call([Node.self() | Node.list()], RequestManager, :get_request, 100)
+    request_list = request_list |> Map.new() |> Map.values()
 
     new_floor = GenServer.call(Driver, :get_floor_sensor_state)
+    {reached_target, new_assignment, request_id} = GenServer.call(RequestManager, {:is_target, new_floor, state[:behaviour], request_list})
+    # IO.inspect(request_id, label: "Current request")
+    if (state[:behaviour] != :open_door) and
+        (new_floor != :between_floors) and reached_target do
+      GenServer.cast(ElevatorState, {:open_door, new_floor})
+    end
 
-    floor = if (new_floor != :between_floors) and (new_floor != floor) do
-      GenStateMachine.cast(SimpleElevator, {:set_floor, new_floor})
+    floor = if (state[:behaviour] != :open_door) and
+                (new_floor != :between_floors) and
+                (new_floor != floor) do
+      GenServer.cast(ElevatorState, {:set_floor, new_floor})
 
-      # GenServer.cast(Driver, {:set_floor_indicator, new_floor})
-      # TODO: also update the SimpleElevator GenStateMachine
-
-      if GenStateMachine.call(SimpleElevator, {:should_stop, new_floor}) do
-        # GenStateMachine.cast(SimpleElevator, {:set_motor_direction, :stop})
-        GenStateMachine.cast(SimpleElevator, {:open_door, new_floor})
-        # GenServer.cast(Driver, {:set_motor_direction, :stop})
+      if GenServer.call(ElevatorState, {:should_stop, new_floor}) and
+          (state[:behaviour] != :open_door) do
+        GenServer.cast(ElevatorState, {:open_door, new_floor})
       end
 
       if (new_floor == bottom_floor) or (new_floor == top_floor) do
-        # if at the top or bottom floors, stop anyways. no out of bounds.
-        # TODO: maybe add this to the SimpleElevator call?
-        GenStateMachine.cast(SimpleElevator, {:set_motor_direction, :stop})
+        GenServer.cast(SimpleElevator, {:set_dir, :stop})
       end
-
-      GenStateMachine.call(SimpleElevator, :share_state)
 
       new_floor
     else

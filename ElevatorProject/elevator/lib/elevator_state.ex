@@ -20,16 +20,18 @@ defmodule ElevatorState do
 
   @sync_timeout 100
   @door_timeout 2000
+  @request_timeout 10000
 
-  def start_link([bottom_floor, top_floor]) do
-    GenServer.start_link(__MODULE__, [bottom_floor, top_floor])
+  def start_link(bottom_floor, top_floor) do
+    GenServer.start_link(__MODULE__, [bottom_floor, top_floor], [name: __MODULE__])
   end
 
   def init([bottom_floor, top_floor]) do
     IO.inspect(__MODULE__, label: "Initializing starting")
 
     {state, backup} = ElevatorState.initialize_state(bottom_floor, top_floor)
-    ElevatorState.initialize_driver(state)
+    current_floor = ElevatorState.initialize_driver(state)
+    state = Map.put(state, :floor, current_floor)
 
     IO.inspect(__MODULE__, label: "Initializing finished")
 
@@ -74,14 +76,32 @@ defmodule ElevatorState do
       end)
     end)
 
-    :ok
+    initialize_floor(Driver.get_floor_sensor_state(Driver))
   end
 
+  def initialize_floor(:between_floors) do
+    Driver.set_motor_direction(Driver, :down)
+    initialize_floor(Driver.get_floor_sensor_state(Driver))
+  end
 
-  # :get_state
-  # useful for getting the state of the local elevator
-  def handle_call(:get_state, _from, {state, backup}) do
-    {:reply, {Node.self(), state}, {state, backup}}
+  def initialize_floor(floor) do
+    Driver.set_motor_direction(Driver, :stop)
+    Driver.set_floor_indicator(Driver, floor)
+    floor
+  end
+
+  # does not handle open door
+  def handle_cast({:set_dir, dir}, {state, backup}) do
+    state = Map.put(state, :dir, dir)
+    Driver.set_motor_direction(Driver, dir)
+    state = case dir do
+      :stop ->
+        Map.put(state, :behaviour, :idle)
+      _ ->
+        Map.put(state, :behaviour, :moving)
+    end
+
+    {:noreply, {state, backup}}
   end
 
   # :set_floor
@@ -92,46 +112,47 @@ defmodule ElevatorState do
     {:noreply, {state |> Map.replace!(:floor, floor), backup}}
   end
 
-  def handle_cast(:share_state, {state, backup}) do
+  def handle_call(:share_state, _from, {state, backup}) do
     {_replies, _bad_nodes} = multi_call({:sync_backup, state, Node.self()}, @sync_timeout)
     # TODO: handle bad calls, maybe limit to within the "calling module" timeout?
 
-    {:noreply, {state, backup}}
-  end
-
-  def handle_call({:sync_backup, backup_state, node_name}, _from, {state, backup}) do
-    {:reply, :ack, {state, backup |> Map.put(node_name, backup_state)}}
+    {:reply, :ack, {state, backup}}
   end
 
   def handle_cast(:get_backup, {state, backup}) do
     {replies, _bad_nodes} = multi_call({:send_backup, Node.self()}, @sync_timeout)
     # TODO: find out if checking for bad nodes is unnecessary
 
-    Enum.reduce(replies |> Enum.filter(fn x -> x != nil end), state,
-    fn backup_state, acc ->
-      Enum.zip(backup_state[:command], acc[:command]) |>
-        Enum.map(fn {e1, e2} -> e1 or e2 end)
+    # replies = [{node_name, backup_state}, ...]
+
+    state = replies |> Enum.filter(fn {node, x} -> x != nil end) |> Enum.reduce(state,
+    fn {_node_name, backup_state}, acc ->
+      new_commands = Enum.zip(backup_state[:command], acc[:command]) |>
+        Enum.map(fn {e1, e2} ->
+          e1 or e2
+        end)
+      Enum.with_index(new_commands) |> Enum.each(fn {val, index} ->
+        if val do
+          Driver.set_order_button_light(Driver, :command, index, :on)
+        end
+      end)
+      Map.put(acc, :command, new_commands)
     end)
 
     # TODO: add these to the order module
-    replies |> Enum.filter(fn x -> x != nil end) |> Enum.reduce(state, fn element, acc ->
-      Map.merge(element, acc, fn key, elem_list, acc_list ->
-        if key in [:command, :call_up, :call_down] do
-          Enum.zip(elem_list, acc_list) |>
-            Enum.map(fn {elem_bool, acc_bool} -> elem_bool or acc_bool end)
-        else
-          acc_list
-        end
-      end)
-    end)
+    # state = replies |> Enum.filter(fn x -> x != nil end) |> Enum.reduce(state, fn element, acc ->
+    #   Map.merge(element, acc, fn key, elem_list, acc_list ->
+    #     if key in [:command, :call_up, :call_down] do
+    #       Enum.zip(elem_list, acc_list) |>
+    #         Enum.map(fn {elem_bool, acc_bool} -> elem_bool or acc_bool end)
+    #     else
+    #       acc_list
+    #     end
+    #   end)
+    # end)
 
     {:noreply, {state, backup}}
   end
-
-  def handle_call({:send_backup, node_name}, _from, {state, backup}) do
-    {:reply, Map.get(backup, node_name, nil), {state, backup}}
-  end
-
 
   # :send_request
   # useful for sending newly aquired requests from the local to the global elevators
@@ -140,12 +161,13 @@ defmodule ElevatorState do
     state = if button_type != :command do
       # tell everyone to change their state
       {replies, bad_nodes} = GenServer.multi_call(Node.list(), ElevatorState, {:get_request, floor, button_type}, @sync_timeout)
-      if not :nack in replies and Enum.empty?(bad_nodes) do
+      if not (:nack in replies) and Enum.empty?(bad_nodes) do
         # tell everyone to light up the order button
-        {replies, bad_nodes} = GenServer.multi_call(Node.list(), ElevatorState, {:set_order_button_light, button_type, floor, :on}, @sync_timeout)
-        if Enum.empty?(bad_nodes) and not :nack in replies do
+        {replies, bad_nodes} = GenServer.multi_call(Node.list(), ElevatorState, {:set_order_button_light, button_type, floor}, @sync_timeout)
+        if not (:nack in replies) and Enum.empty?(bad_nodes) do
           # only accept a request locally if it is received on the other nodes
           # NOTE: stricter than previous implementation
+          Driver.set_order_button_light(Driver, button_type, floor, :on)
           {_, state} = Map.get_and_update(state, button_type,
             fn request_list ->
               {request_list, List.replace_at(request_list, floor, true)}
@@ -163,10 +185,119 @@ defmodule ElevatorState do
         state
       end
     else
+      Driver.set_order_button_light(Driver, button_type, floor, :on)
+      {_, state} = Map.get_and_update(state, button_type,
+        fn request_list ->
+          {request_list, List.replace_at(request_list, floor, true)}
+        end)
       state
     end
 
     {:noreply, {state, backup}}
+  end
+
+  # door things
+  # open door
+  def handle_cast({:open_door, floor}, {state, backup}) do
+    state = if (state[:behaviour] != :open_door) do
+      IO.puts "Opening door"
+      Driver.set_motor_direction(Driver, :stop)
+      Driver.set_door_open_light(Driver, :on)
+
+      state = state |>  Map.replace!(:door, :open) |>
+                        Map.replace!(:behaviour, :open_door)
+
+      # {_, state} = Map.get_and_update(state, :command, fn cmd_list -> {cmd_list, cmd_list |> List.replace_at(floor, false)} end)
+      # state = if GenServer.call(RequestManager, {:is_target, floor, state[:behaviour]}) do
+      #   state |>
+      #     set_button(:call_up, floor, false) |>
+      #     set_button(:call_down, floor, false)
+      # else
+
+      state = case state[:dir] do
+        :up   ->
+          state |> set_button(:call_up, floor, false)
+        :down ->
+          state |> set_button(:call_down, floor, false)
+        :stop ->
+          state |>
+            set_button(:call_up, floor, false) |>
+            set_button(:call_down, floor, false)
+      end |> set_button(:command, floor, false)
+
+      # don't care if this is not completed, as it then would be handled
+      # by that node locally
+      {_, _} = multi_call({:clear_floor, floor}, @sync_timeout)
+
+      # sends after approximatly door timeout milliseconds
+      Process.send_after(self(), :close_door, @door_timeout)
+
+      state
+    else
+      state
+    end
+
+    {:noreply, {state, backup}}
+  end
+
+  # close door, only called by open door
+  def handle_info(:close_door, {state, backup}) do
+    IO.puts "Closing door"
+    state = state |>
+            Map.replace!(:door, :closed) |>
+            Map.replace!(:behaviour, if state[:dir] == :stop do :idle else :moving end)
+
+    Driver.set_door_open_light(Driver, :off)
+    state = cond do
+      state[:dir] == :up and state[:floor] == state[:config][:top_floor] or
+      state[:dir] == :down and state[:floor] == state[:config][:bottom_floor] ->
+        Driver.set_motor_direction(Driver, :stop)
+        state |> Map.put(:dir, :stop) |> Map.put(:behaviour, :idle)
+      true ->
+        Driver.set_motor_direction(Driver, state[:dir]) # continue on path
+        state
+    end
+
+    {:noreply, {state, backup}}
+  end
+
+  # :get_state
+  # useful for getting the state of the local elevator
+  def handle_call(:get_state, _from, {state, backup}) do
+    {:reply, state, {state, backup}}
+  end
+
+  def handle_call(:get_floor, _from, {state, backup}) do
+    {:reply, state[:floor], {state, backup}}
+  end
+
+  def handle_call(:get_behaviour, _from, {state, backup}) do
+    {:reply, state[:behaviour], {state, backup}}
+  end
+
+  def handle_call({:should_stop, floor}, _from, {state, backup}) do
+    global_stop = case state[:dir] do
+      :up   ->
+        Enum.at(state[:call_up], floor)
+      :down ->
+        Enum.at(state[:call_down], floor)
+      :stop ->
+        Enum.at(state[:call_up], floor) or Enum.at(state[:call_down], floor)
+      what  ->
+        IO.inspect(what, label: "Something happened in should_stop")
+        false
+    end
+
+    local_stop = Enum.at(state[:command], floor)
+    {:reply, global_stop or local_stop, {state, backup}}
+  end
+
+  def handle_call({:sync_backup, backup_state, node_name}, _from, {state, backup}) do
+    {:reply, :ack, {state, backup |> Map.put(node_name, backup_state)}}
+  end
+
+  def handle_call({:send_backup, node_name}, _from, {state, backup}) do
+    {:reply, Map.get(backup, node_name, nil), {state, backup}}
   end
 
   def handle_call({:get_request, floor, button_type}, _from, {state, backup}) do
@@ -178,7 +309,19 @@ defmodule ElevatorState do
     # GenServer.cast(Driver, {:set_order_button_light, button_type, floor, button_state})
     # Driver.set_order_button_light(Driver, button_type, floor, :off)
 
-    {:reply, :ack, state}
+    {:reply, :ack, {state, backup}}
+  end
+
+  def handle_call({:remove_request, floor, button_type}, _from, {state, backup}) do
+    # change the state at button_type and floor to true
+    {_, state} = Map.get_and_update(state, button_type,
+      fn request_list ->
+        {request_list, List.replace_at(request_list, floor, false) }
+      end)
+    # GenServer.cast(Driver, {:set_order_button_light, button_type, floor, button_state})
+    # Driver.set_order_button_light(Driver, button_type, floor, :off)
+
+    {:reply, :ack, {state, backup}}
   end
 
   def handle_call({:set_order_button_light, button_type, floor}, _from, {state, backup}) do
@@ -214,58 +357,11 @@ defmodule ElevatorState do
 
     # TODO: also clear from Order module
     state = state |>
-            set_button(:call_up, floor, :off) |>
-            set_button(:call_down, floor, :off)
+            set_button(:call_up, floor, false) |>
+            set_button(:call_down, floor, false)
 
     {:reply, :ack, {state, backup}}
   end
-
-
-
-  # door things
-
-  # open door
-  def handle_cast({:open_door, floor}, {state, backup}) do
-
-    Driver.set_motor_direction(Driver, :stop)
-    Driver.set_door_open_light(Driver, :on)
-
-    state = state |>  Map.replace!(:door, :open) |>
-                      Map.replace!(:behaviour, :open_door)
-
-    # {_, state} = Map.get_and_update(state, :command, fn cmd_list -> {cmd_list, cmd_list |> List.replace_at(floor, false)} end)
-    state = state |>
-            set_button(:command, floor, :off) |>
-            set_button(:call_up, floor, :off) |>
-            set_button(:call_down, floor, :off)
-
-    # don't care if this is not completed, as it then would be handled
-    # by that node locally
-    {_, _} = multi_call({:clear_floor, floor}, @sync_timeout)
-
-    # sends after approximatly door timeout milliseconds
-    Process.send_after(self(), :close_door, @door_timeout)
-
-    {:noreply, {state, backup}}
-  end
-
-  # close door, only called by open door
-  def handle_info(:close_door, {state, backup}) do
-    state = state |>
-            Map.replace!(:door, :closed) |>
-            Map.replace!(:behaviour, if state[:dir] == :stop do :idle else :moving end)
-
-    Driver.set_door_open_light(Driver, :off)
-    Driver.set_motor_direction(Driver, state[:dir]) # continue on path
-
-    {:noreply, {state, backup}}
-  end
-
-
-
-
-
-
 
   # wrapper, simplify GenServer.multi_call
   defp multi_call(args, timeout) do
@@ -300,7 +396,16 @@ defmodule ElevatorState do
   end
 
   defp set_button(state, button_type, floor, value) do
-    Driver.set_order_button_light(Driver, button_type, floor, value)
+    case value do
+      true ->
+        Driver.set_order_button_light(Driver, button_type, floor, :on)
+      false ->
+        Driver.set_order_button_light(Driver, button_type, floor, :off)
+      _ ->
+        IO.inspect(value, label: "set button")
+        Driver.set_order_button_light(Driver, button_type, floor, :off)
+    end
+
 
     {_, state} = Map.get_and_update(state, button_type,
     fn cmd_list ->

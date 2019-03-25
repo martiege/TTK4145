@@ -1,10 +1,14 @@
 defmodule ElevatorSupervisor do
   use Supervisor
 
-  def start_link(node_number) do
+  def start_link(node_number) when is_integer(node_number) do
     driver_port = 20000 + node_number * 1000
     node_name = "n" <> to_string(node_number)
     ElevatorSupervisor.start_link(driver_port, node_name, 0, 3) # standard
+  end
+
+  def start_link(node_name) do
+    Supervisor.start_link(__MODULE__, {15657, })
   end
 
   def start_link(driver_port, node_name, bottom_floor, top_floor) do
@@ -15,7 +19,7 @@ defmodule ElevatorSupervisor do
     children = [
       %{
         id: Driver,
-        start: {Driver, :start_link, [ElevatorFinder.get_ip_tuple(), driver_port]}, 
+        start: {Driver, :start_link, [ElevatorFinder.get_ip_tuple(), driver_port]},
         restart: :permanent,
         shutdown: 5000,
         type: :worker
@@ -28,8 +32,15 @@ defmodule ElevatorSupervisor do
         type: :worker
       },
       %{
-        id: SimpleElevator,
-        start: {SimpleElevator, :start_link, [bottom_floor, top_floor]},
+        id: ElevatorState,
+        start: {ElevatorState, :start_link, [bottom_floor, top_floor]},
+        restart: :permanent,
+        shutdown: 5000,
+        type: :worker
+      },
+      %{
+        id: RequestManager,
+        start: {RequestManager, :start_link, [{}]},
         restart: :permanent,
         shutdown: 5000,
         type: :worker
@@ -42,13 +53,14 @@ defmodule ElevatorSupervisor do
         type: :supervisor
       },
 
+
       # {Driver, [ElevatorFinder.get_ip_tuple(), driver_port]}, #ElevatorFinder.get_ip_tuple()
       # {ElevatorFinder, [node_name]},
       # {SimpleElevator, [0, 3]},
       # {Events, [0, 3]},
     ]
 
-    Supervisor.init(children, strategy: :one_for_one)
+    Supervisor.init(children, strategy: :one_for_all)
   end
 
 end
