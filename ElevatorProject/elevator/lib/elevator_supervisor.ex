@@ -8,7 +8,7 @@ defmodule ElevatorSupervisor do
   end
 
   def start_link(node_name) do
-    Supervisor.start_link(__MODULE__, {15657, })
+    Supervisor.start_link(__MODULE__, {15657, node_name, 0, 3})
   end
 
   def start_link(driver_port, node_name, bottom_floor, top_floor) do
@@ -52,12 +52,6 @@ defmodule ElevatorSupervisor do
         shutdown: :infinity,
         type: :supervisor
       },
-
-
-      # {Driver, [ElevatorFinder.get_ip_tuple(), driver_port]}, #ElevatorFinder.get_ip_tuple()
-      # {ElevatorFinder, [node_name]},
-      # {SimpleElevator, [0, 3]},
-      # {Events, [0, 3]},
     ]
 
     Supervisor.init(children, strategy: :one_for_all)

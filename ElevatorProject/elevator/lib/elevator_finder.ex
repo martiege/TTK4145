@@ -52,7 +52,6 @@ defmodule ElevatorFinder do
 
     :gen_udp.send(socket, @broadcastIP, @finderPort, node_id)
 
-    # GenStateMachine.call(SimpleElevator, :share_state)
     GenServer.call(ElevatorState, :share_state)
 
     Process.send_after(self(), :broadcast, @broadcastWait)
@@ -72,11 +71,7 @@ defmodule ElevatorFinder do
     if (post_connect_length - pre_connect_length) > 0 do
       IO.puts "Found new node: #{msg}"
       # sync
-      # merge
       GenServer.cast(ElevatorState, :get_backup)
-      # {replies, bad_nodes} = GenServer.multi_call(Node.list(), SimpleElevator, {:get_backup, node_name}, @shareStateWait)
-      #
-      # replies = replies ++ handle_bad_nodes(bad_nodes, node_name)
     end
 
     {:noreply, {socket, node_name}}

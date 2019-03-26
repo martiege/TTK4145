@@ -1,18 +1,4 @@
 defmodule ElevatorState do
-  @moduledoc """
-  Documentation for Elevator.
-  """
-
-  @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> Elevator.hello()
-      :world
-
-  """
-
   use GenServer
 
   @type state() :: map()
@@ -60,12 +46,6 @@ defmodule ElevatorState do
   end
 
   def initialize_driver(state) do
-    # button_floor = %{
-    #   :command => state[:config][:bottom_floor]..state[:config][:top_floor],
-    #   :call_up => state[:config][:bottom_floor]..(state[:config][:top_floor] - 1),
-    #   :call_down => (state[:config][:bottom_floor] + 1)..state[:config][:top_floor]
-    # }
-
     Driver.set_motor_direction(Driver, :stop)
     Driver.set_stop_button_light(Driver, :off)
     Driver.set_door_open_light(Driver, :off)
@@ -114,16 +94,13 @@ defmodule ElevatorState do
 
   def handle_call(:share_state, _from, {state, backup}) do
     {_replies, _bad_nodes} = multi_call({:sync_backup, state, Node.self()}, @sync_timeout)
-    # TODO: handle bad calls, maybe limit to within the "calling module" timeout?
 
     {:reply, :ack, {state, backup}}
   end
 
   def handle_cast(:get_backup, {state, backup}) do
-    {replies, _bad_nodes} = multi_call({:send_backup, Node.self()}, @sync_timeout)
-    # TODO: find out if checking for bad nodes is unnecessary
-
-    # replies = [{node_name, backup_state}, ...]
+    {replies, bad_nodes} = multi_call({:send_backup, Node.self()}, @sync_timeout)
+    replies = replies ++ handle_bad_nodes(bad_nodes, {:send_backup, Node.self()}, @sync_timeout)
 
     state = replies |> Enum.filter(fn {node, x} -> x != nil end) |> Enum.reduce(state,
     fn {_node_name, backup_state}, acc ->
@@ -138,18 +115,6 @@ defmodule ElevatorState do
       end)
       Map.put(acc, :command, new_commands)
     end)
-
-    # TODO: add these to the order module
-    # state = replies |> Enum.filter(fn x -> x != nil end) |> Enum.reduce(state, fn element, acc ->
-    #   Map.merge(element, acc, fn key, elem_list, acc_list ->
-    #     if key in [:command, :call_up, :call_down] do
-    #       Enum.zip(elem_list, acc_list) |>
-    #         Enum.map(fn {elem_bool, acc_bool} -> elem_bool or acc_bool end)
-    #     else
-    #       acc_list
-    #     end
-    #   end)
-    # end)
 
     {:noreply, {state, backup}}
   end
@@ -178,7 +143,9 @@ defmodule ElevatorState do
           # sending a counter message to clear the resulting change from the
           # other nodes.
           # TODO: make this more robust
-          {_replies, _bad_nodes} = GenServer.multi_call(Node.list(), ElevatorState, {:clear_request, floor, button_type}, @sync_timeout)
+          {replies, bad_nodes} = GenServer.multi_call(Node.list(), ElevatorState, {:clear_request, floor, button_type}, @sync_timeout)
+          _replies = replies ++ handle_bad_nodes(bad_nodes, {:clear_request, floor, button_type}, @sync_timeout)
+
           state
         end
       else
@@ -206,13 +173,6 @@ defmodule ElevatorState do
 
       state = state |>  Map.replace!(:door, :open) |>
                         Map.replace!(:behaviour, :open_door)
-
-      # {_, state} = Map.get_and_update(state, :command, fn cmd_list -> {cmd_list, cmd_list |> List.replace_at(floor, false)} end)
-      # state = if GenServer.call(RequestManager, {:is_target, floor, state[:behaviour]}) do
-      #   state |>
-      #     set_button(:call_up, floor, false) |>
-      #     set_button(:call_down, floor, false)
-      # else
 
       state = case state[:dir] do
         :up   ->
@@ -306,8 +266,6 @@ defmodule ElevatorState do
       fn request_list ->
         {request_list, List.replace_at(request_list, floor, true) }
       end)
-    # GenServer.cast(Driver, {:set_order_button_light, button_type, floor, button_state})
-    # Driver.set_order_button_light(Driver, button_type, floor, :off)
 
     {:reply, :ack, {state, backup}}
   end
@@ -347,7 +305,6 @@ defmodule ElevatorState do
         {request_list, List.replace_at(request_list, floor, false) }
       end)
 
-    # GenServer.cast(Driver, {:set_order_button_light, button_type, floor, :off})
     Driver.set_order_button_light(Driver, button_type, floor, :off)
 
     {:reply, :ack, {state, backup}}

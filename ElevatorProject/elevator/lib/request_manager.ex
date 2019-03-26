@@ -22,7 +22,6 @@ defmodule RequestManager do
   def init([target]) do
     IO.inspect(__MODULE__, label: "Initializing starting")
 
-    # Process.send_after(self(), :get_next_request, @recalculate_request_timeout)
 
     IO.inspect(__MODULE__, label: "Initializing finished")
 
@@ -40,6 +39,7 @@ defmodule RequestManager do
     else
       {}
     end
+
     {:reply, {false, request_id != {}, request_id}, request_id}
   end
 
@@ -48,14 +48,11 @@ defmodule RequestManager do
     {_, request_floor} = request_id
 
     if floor == request_floor do
-      # IO.puts "Clearing this floor everywhere"
       {replies, bad_nodes} = multi_call(Node.list(), ElevatorState, {:clear_floor, floor}, @clear_floor_timeout)
-      # IO.puts "Handling bad nodes"
       _replies = replies ++ handle_bad_nodes(bad_nodes, ElevatorState, {:clear_floor, floor}, @clear_floor_timeout)
-      # IO.puts "Cleaning locally"
+
       GenServer.call(ElevatorState, {:clear_floor, floor}, @clear_floor_timeout)
       GenServer.call(ElevatorState, {:clear_request, floor, :command}, @clear_floor_timeout)
-      # IO.puts "Done clearing this floor everywhere"
 
       request_id = get_new_request(request_list) |> assign_request(request_list)
 
@@ -92,30 +89,30 @@ defmodule RequestManager do
 
   defp assign_request(request_id, request_list) do
     cond do
-    not (request_id in request_list) ->
-      {_, floor} = request_id
-      dir = get_direction(GenServer.call(ElevatorState, :get_floor), floor)
-      GenServer.cast(ElevatorState, {:set_dir, dir})
-      request_id
-    request_id != {} ->
-      {button_type, floor} = request_id
-      if button_type == :command do
+      not (request_id in request_list) ->
+        {_, floor} = request_id
         dir = get_direction(GenServer.call(ElevatorState, :get_floor), floor)
         GenServer.cast(ElevatorState, {:set_dir, dir})
         request_id
-      else
+      request_id != {} ->
+        {button_type, floor} = request_id
+        if button_type == :command do
+          dir = get_direction(GenServer.call(ElevatorState, :get_floor), floor)
+          GenServer.cast(ElevatorState, {:set_dir, dir})
+          request_id
+        else
+          GenServer.cast(ElevatorState, {:set_dir, :stop})
+          {}
+        end
+      true ->
         GenServer.cast(ElevatorState, {:set_dir, :stop})
         {}
-      end
-    true ->
-      GenServer.cast(ElevatorState, {:set_dir, :stop})
-      {}
     end
   end
 
   defp get_new_request(request_list) do
     local_state = GenServer.call(ElevatorState, :get_state, @get_state_timeout)
-    {replies, bad_nodes} = multi_call(Node.list(), ElevatorState, :get_state, @get_state_timeout)
+    {replies, _bad_nodes} = multi_call(Node.list(), ElevatorState, :get_state, @get_state_timeout)
     state_map = [{Node.self(), local_state} | replies] |> Map.new()
 
     state_map |>
@@ -129,14 +126,11 @@ defmodule RequestManager do
   end
 
   defp handle_bad_nodes(bad_nodes, name, args, timeout) when length(bad_nodes) != 0 do
-    # TODO: check if IO makes this function too slow
     IO.inspect(bad_nodes, label: "Handling these bad nodes")
     IO.inspect(args, label: "Handling calling this message")
-    # find bad nodes still alive, union of Node.list() and bad_nodes
+
     bad_nodes = Node.list() -- (Node.list() -- bad_nodes)
-    # might be "stuck" if nodes are cont. using long time to reply
-    # is fine, but might be handled (finite steps)
-    # though not needed for this project
+
     {replies, bad_nodes} = multi_call(bad_nodes, name, args, timeout)
 
     replies ++ handle_bad_nodes(bad_nodes, name, args, timeout)
@@ -192,7 +186,6 @@ defmodule RequestManager do
   end
 
   defp get_cost_list(state_map, request_list) do
-    # IO.inspect(request_list, label: "Request list")
     Enum.map(Map.keys(state_map),
     fn node_name ->
       state = state_map[node_name]

@@ -1,16 +1,9 @@
 defmodule Events do
   use Supervisor
 
-  # TODO: use supervisor
-  # TODO: change internal floor, top and bottom floors to calls to the SimpleElevator
-
   def start_link(bottom_floor, top_floor) do
     Supervisor.start_link(__MODULE__, [bottom_floor, top_floor])
   end
-
-  # def init([bottom_floor, top_floor]) do
-  #   Events.init(bottom_floor, top_floor)
-  # end
 
   def init([bottom_floor, top_floor]) do
     IO.inspect(__MODULE__, label: "Initializing starting")
@@ -25,7 +18,6 @@ defmodule Events do
       fn button_type ->
         Enum.map(button_floor[button_type],
           fn floor ->
-            # GenServer.cast(Driver, {:set_order_button_light, button_type, floor, :off})
             %{ # specify child spec, and give each button it's own unique id atom
               id: (to_string(button_type) <> to_string(floor)) |> String.to_atom(),
               start: {Events.Button, :start_link, [floor, button_type]},
@@ -69,9 +61,6 @@ defmodule Events.Button do
     if GenServer.call(Driver, {:get_order_button_state, floor, button_type}) == 1 do
       GenServer.cast(ElevatorState, {:send_request, floor, button_type})
       GenServer.cast(RequestManager, {:add_request, {button_type, floor}})
-      # GenStateMachine.cast(SimpleElevator, {:send_request, floor, button_type})
-      # GenStateMachine.call(SimpleElevator, :share_state)
-      # TODO: change polling_period when found a button press?
     end
 
     Process.send_after(self(), :poll, @polling_period)
@@ -92,7 +81,6 @@ defmodule Events.Arrive do
   end
 
   def init([start_floor, bottom_floor, top_floor]) do
-    # GenStateMachine.cast(SimpleElevator, {:set_floor, start_floor})
     GenServer.cast(ElevatorState, {:set_floor, start_floor})
 
     Process.send_after(self(), :poll, @polling_period)
@@ -107,7 +95,7 @@ defmodule Events.Arrive do
 
     new_floor = GenServer.call(Driver, :get_floor_sensor_state)
     {reached_target, new_assignment, request_id} = GenServer.call(RequestManager, {:is_target, new_floor, state[:behaviour], request_list})
-    # IO.inspect(request_id, label: "Current request")
+    
     if (state[:behaviour] != :open_door) and
         (new_floor != :between_floors) and reached_target do
       GenServer.cast(ElevatorState, {:open_door, new_floor})
