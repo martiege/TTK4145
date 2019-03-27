@@ -7,8 +7,7 @@
  Because sometimes we have differents tasks but one is more critical, or necessary to complete for the system to function correctly than the others, and it's better to assign higher priority to this one. Doing that we make sure that it is completed first in case the two tasks require same resources.
  
  **2. What features must a scheduler have for it to be usable for real-time systems?**
- For a scheduler to be useful in analysis of the system it needs to be predictable
- ???
+ For a scheduler to be useful in analysis of the system it needs to be predictable, so that it can finish tasks within certain deadlines. Especially for real-time systems, if a task is time critical, it will be useless if it's not scheduled properly. Furthermore, if a single task is taking to long, then the entire system can stop progressing. So fulfilling deadlines is especially important for real-time systems. 
 
  
 ## Inversion and inheritance
@@ -45,8 +44,8 @@
 
 ### Task 3: Explain:
  **1. What is priority inversion? What is unbounded priority inversion?**
- A priority inversion is when a high-priority process has to wait for a low-priority one to finish.
- An unbounded priority inversion is one that can cause the high priority process to wait forever due to resource locks. If the system is schedulable this can not happend
+ A priority inversion is when a high-priority process has to wait for a low-priority one to finish. This is because the lower priority task has been assigned recourses before the higher priority, and leaving that unable to be executed as intended. 
+ An unbounded priority inversion is one that can cause the high priority process to wait forever, as lower priority tasks grant recourses to each other and ignorign the higher priority tasks indefinetly. Therefore, there is no guarantee that the higher priority tasks will even complete. 
   
  **3. Does priority inheritance avoid deadlocks?**
  No, it does not.
