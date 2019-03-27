@@ -65,6 +65,13 @@
 
 ### Task 4:
  **1. There are a number of assumptions / conditions that must be true for the utilization and response time tests to be usable (The "simple task model"). What are these assumptions? Comment on how realistic they are.**
+Fixed set of tasks 
+Periodic tasks with known periods
+Indepentant tasks 
+Constant worst case execution time 
+Deadlines equal to the task period 
+Overhead runs in zero time 
+ 
  
  **2. Perform the utilization test for the task set. Is the task set schedulable?**
  
