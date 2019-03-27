@@ -97,21 +97,6 @@ defmodule ElevatorState do
       handle_bad_nodes(bad_nodes, {:send_backup, Node.self()},
       @sync_timeout, :backup_returned, replies)
     end)
-    # replies = replies ++ handle_bad_nodes(bad_nodes, {:send_backup, Node.self()}, @sync_timeout)
-
-    # state = replies |> Enum.filter(fn {node, x} -> x != nil end) |> Enum.reduce(state,
-    # fn {_node_name, backup_state}, acc ->
-    #   new_commands = Enum.zip(backup_state[:command], acc[:command]) |>
-    #     Enum.map(fn {e1, e2} ->
-    #       e1 or e2
-    #     end)
-    #   Enum.with_index(new_commands) |> Enum.each(fn {val, index} ->
-    #     if val do
-    #       Driver.set_order_button_light(Driver, :command, index, :on)
-    #     end
-    #   end)
-    #   Map.put(acc, :command, new_commands)
-    # end)
 
     {:noreply, {state, backup}}
   end
@@ -202,7 +187,6 @@ defmodule ElevatorState do
   end
 
   def handle_cast({:backup_returned, replies}, {state, backup}) do
-    IO.inspect(replies, label: "Backups have returned!")
     state = replies |> Enum.filter(fn {_node_name, x} -> x != nil end) |> Enum.reduce(state,
     fn {_node_name, backup_state}, acc ->
       new_commands = Enum.zip(backup_state[:command], acc[:command]) |>
@@ -310,9 +294,6 @@ defmodule ElevatorState do
       fn request_list ->
         {request_list, List.replace_at(request_list, floor, false) }
       end)
-    # GenServer.cast(Driver, {:set_order_button_light, button_type, floor, button_state})
-    # Driver.set_order_button_light(Driver, button_type, floor, :off)
-
     {:reply, :ack, {state, backup}}
   end
 
@@ -322,18 +303,13 @@ defmodule ElevatorState do
       Driver.set_order_button_light(Driver, button_type, floor, :on)
       :ack
     else
-      # shouldn't happen, but is nice to have this case for extra reassurance
-      # TODO: handle this in :send_request
       :nack
     end
-    # GenServer.cast(Driver, {:set_order_button_light, button_type, floor, button_state})
 
     {:reply, answer, {state, backup}}
   end
 
   def handle_call({:clear_request, floor, button_type}, _from, {state, backup}) do
-    # NOTE: this might end up clearing existing requests!!
-    # TODO: ask the Order module if the request is accepted as an order
     {_, state} = Map.get_and_update(state, button_type,
       fn request_list ->
         {request_list, List.replace_at(request_list, floor, false) }
@@ -345,8 +321,6 @@ defmodule ElevatorState do
   end
 
   def handle_call({:clear_floor, floor}, _from, {state, backup}) do
-
-    # TODO: also clear from Order module
     state = state |>
             set_button(:call_up, floor, false) |>
             set_button(:call_down, floor, false)

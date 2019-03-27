@@ -4,7 +4,6 @@ defmodule RequestManager do
 
   @get_state_timeout 100
   @clear_floor_timeout 100
-  @recalculate_request_timeout 1000
 
   @floor_penalty 1
   @direction_penalty 1
@@ -29,11 +28,10 @@ defmodule RequestManager do
   end
 
   def handle_call(:get_request, _from, request_id) do
-    # IO.inspect(request_id, label: "Current request id")
     {:reply, request_id, request_id}
   end
 
-  def handle_call({:is_target, floor, behaviour, request_list}, _from, {}) do
+  def handle_call({:is_target, _floor, behaviour, request_list}, _from, {}) do
     request_id = if behaviour == :idle do
       get_new_request(request_list) |> assign_request(request_list)
     else
@@ -49,7 +47,10 @@ defmodule RequestManager do
 
     if floor == request_floor do
       {replies, bad_nodes} = multi_call(Node.list(), ElevatorState, {:clear_floor, floor}, @clear_floor_timeout)
-      _replies = replies ++ handle_bad_nodes(bad_nodes, ElevatorState, {:clear_floor, floor}, @clear_floor_timeout)
+      Task.start_link(fn ->
+        handle_bad_nodes(bad_nodes, ElevatorState, {:clear_floor, floor},
+          @clear_floor_timeout, :all_requests_cleared, replies)
+      end)
 
       GenServer.call(ElevatorState, {:clear_floor, floor}, @clear_floor_timeout)
       GenServer.call(ElevatorState, {:clear_request, floor, :command}, @clear_floor_timeout)
@@ -66,6 +67,10 @@ defmodule RequestManager do
 
       {:reply, {false, request_id != {}, request_id}, request_id}
     end
+  end
+
+  def handle_cast({:all_requests_cleared, _replies}, request_id) do
+    {:noreply, request_id}
   end
 
   def handle_cast(:clear_request, _request_id) do
@@ -121,24 +126,26 @@ defmodule RequestManager do
       get_minimum_node(Node.self())
   end
 
-  defp multi_call(nodes, name, args, timeout) do
+  def multi_call(nodes, name, args, timeout) do
     GenServer.multi_call(nodes, name, args, timeout)
   end
 
-  defp handle_bad_nodes(bad_nodes, name, args, timeout) when length(bad_nodes) != 0 do
-    IO.inspect(bad_nodes, label: "Handling these bad nodes")
-    IO.inspect(args, label: "Handling calling this message")
+  def handle_bad_nodes(bad_nodes, name, args, timeout, answer_message, original_replies) do
+    replies = RequestManager.handle_bad_nodes(bad_nodes, name, args, timeout)
 
+    GenServer.cast(RequestManager, {answer_message, replies ++ original_replies})
+  end
+
+  def handle_bad_nodes(bad_nodes, name, args, timeout) when length(bad_nodes) != 0 do
     bad_nodes = Node.list() -- (Node.list() -- bad_nodes)
 
-    {replies, bad_nodes} = multi_call(bad_nodes, name, args, timeout)
+    {replies, bad_nodes} = RequestManager.multi_call(bad_nodes, name, args, timeout)
 
-    replies ++ handle_bad_nodes(bad_nodes, name, args, timeout)
+    replies ++ RequestManager.handle_bad_nodes(bad_nodes, name, args, timeout)
   end
 
   # end state for
-  defp handle_bad_nodes([], _name, _args, _timeout) do
-    # IO.puts "Done with bad nodes"
+  def handle_bad_nodes([], _name, _args, _timeout) do
     []
   end
 
