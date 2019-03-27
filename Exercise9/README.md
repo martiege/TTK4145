@@ -64,7 +64,7 @@
 | c    | 20         | 5              |
 
 ### Task 4:
- **1. There are a number of assumptions/conditions that must be true for the utilization and response time tests to be usable (The "simple task model"). What are these assumptions? Comment on how realistic they are.**
+ **1. There are a number of assumptions / conditions that must be true for the utilization and response time tests to be usable (The "simple task model"). What are these assumptions? Comment on how realistic they are.**
  
  **2. Perform the utilization test for the task set. Is the task set schedulable?**
  
