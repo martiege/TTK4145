@@ -94,8 +94,8 @@ defmodule Events.Arrive do
     request_list = request_list |> Map.new() |> Map.values()
 
     new_floor = GenServer.call(Driver, :get_floor_sensor_state)
-    {reached_target, new_assignment, request_id} = GenServer.call(RequestManager, {:is_target, new_floor, state[:behaviour], request_list})
-    
+    {reached_target, _new_assignment, _request_id} = GenServer.call(RequestManager, {:is_target, new_floor, state[:behaviour], request_list})
+
     if (state[:behaviour] != :open_door) and
         (new_floor != :between_floors) and reached_target do
       GenServer.cast(ElevatorState, {:open_door, new_floor})

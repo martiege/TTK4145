@@ -6,7 +6,6 @@ defmodule ElevatorState do
 
   @sync_timeout 100
   @door_timeout 2000
-  @request_timeout 10000
 
   def start_link(bottom_floor, top_floor) do
     GenServer.start_link(__MODULE__, [bottom_floor, top_floor], [name: __MODULE__])
@@ -92,29 +91,27 @@ defmodule ElevatorState do
     {:noreply, {state |> Map.replace!(:floor, floor), backup}}
   end
 
-  def handle_call(:share_state, _from, {state, backup}) do
-    {_replies, _bad_nodes} = multi_call({:sync_backup, state, Node.self()}, @sync_timeout)
-
-    {:reply, :ack, {state, backup}}
-  end
-
   def handle_cast(:get_backup, {state, backup}) do
     {replies, bad_nodes} = multi_call({:send_backup, Node.self()}, @sync_timeout)
-    replies = replies ++ handle_bad_nodes(bad_nodes, {:send_backup, Node.self()}, @sync_timeout)
-
-    state = replies |> Enum.filter(fn {node, x} -> x != nil end) |> Enum.reduce(state,
-    fn {_node_name, backup_state}, acc ->
-      new_commands = Enum.zip(backup_state[:command], acc[:command]) |>
-        Enum.map(fn {e1, e2} ->
-          e1 or e2
-        end)
-      Enum.with_index(new_commands) |> Enum.each(fn {val, index} ->
-        if val do
-          Driver.set_order_button_light(Driver, :command, index, :on)
-        end
-      end)
-      Map.put(acc, :command, new_commands)
+    Task.start_link(fn ->
+      handle_bad_nodes(bad_nodes, {:send_backup, Node.self()},
+      @sync_timeout, :backup_returned, replies)
     end)
+    # replies = replies ++ handle_bad_nodes(bad_nodes, {:send_backup, Node.self()}, @sync_timeout)
+
+    # state = replies |> Enum.filter(fn {node, x} -> x != nil end) |> Enum.reduce(state,
+    # fn {_node_name, backup_state}, acc ->
+    #   new_commands = Enum.zip(backup_state[:command], acc[:command]) |>
+    #     Enum.map(fn {e1, e2} ->
+    #       e1 or e2
+    #     end)
+    #   Enum.with_index(new_commands) |> Enum.each(fn {val, index} ->
+    #     if val do
+    #       Driver.set_order_button_light(Driver, :command, index, :on)
+    #     end
+    #   end)
+    #   Map.put(acc, :command, new_commands)
+    # end)
 
     {:noreply, {state, backup}}
   end
@@ -142,9 +139,13 @@ defmodule ElevatorState do
           # if not received at the other nodes for whatever reason:
           # sending a counter message to clear the resulting change from the
           # other nodes.
-          # TODO: make this more robust
-          {replies, bad_nodes} = GenServer.multi_call(Node.list(), ElevatorState, {:clear_request, floor, button_type}, @sync_timeout)
-          _replies = replies ++ handle_bad_nodes(bad_nodes, {:clear_request, floor, button_type}, @sync_timeout)
+          {replies, bad_nodes} = GenServer.multi_call(Node.list(), ElevatorState,
+            {:clear_request, floor, button_type}, @sync_timeout)
+          Task.start_link(fn ->
+            handle_bad_nodes(bad_nodes, {:clear_request, floor, button_type},
+            @sync_timeout, :all_requests_cleared, replies)
+          end)
+          # _replies = replies ++ handle_bad_nodes(bad_nodes, {:clear_request, floor, button_type}, @sync_timeout)
 
           state
         end
@@ -200,6 +201,29 @@ defmodule ElevatorState do
     {:noreply, {state, backup}}
   end
 
+  def handle_cast({:backup_returned, replies}, {state, backup}) do
+    IO.inspect(replies, label: "Backups have returned!")
+    state = replies |> Enum.filter(fn {_node_name, x} -> x != nil end) |> Enum.reduce(state,
+    fn {_node_name, backup_state}, acc ->
+      new_commands = Enum.zip(backup_state[:command], acc[:command]) |>
+        Enum.map(fn {e1, e2} ->
+          e1 or e2
+        end)
+      Enum.with_index(new_commands) |> Enum.each(fn {val, index} ->
+        if val do
+          Driver.set_order_button_light(Driver, :command, index, :on)
+        end
+      end)
+      Map.put(acc, :command, new_commands)
+    end)
+
+    {:noreply, {state, backup}}
+  end
+
+  def handle_cast({:all_requests_cleared, _replies}, {state, backup}) do
+    {:noreply, {state, backup}}
+  end
+
   # close door, only called by open door
   def handle_info(:close_door, {state, backup}) do
     IO.puts "Closing door"
@@ -225,6 +249,10 @@ defmodule ElevatorState do
   # useful for getting the state of the local elevator
   def handle_call(:get_state, _from, {state, backup}) do
     {:reply, state, {state, backup}}
+  end
+
+  def handel_call(:get_backup, _from, {state, backup}) do
+    {:reply, backup, {state, backup}}
   end
 
   def handle_call(:get_floor, _from, {state, backup}) do
@@ -258,6 +286,12 @@ defmodule ElevatorState do
 
   def handle_call({:send_backup, node_name}, _from, {state, backup}) do
     {:reply, Map.get(backup, node_name, nil), {state, backup}}
+  end
+
+  def handle_call(:share_state, _from, {state, backup}) do
+    {_replies, _bad_nodes} = multi_call({:sync_backup, state, Node.self()}, @sync_timeout)
+
+    {:reply, :ack, {state, backup}}
   end
 
   def handle_call({:get_request, floor, button_type}, _from, {state, backup}) do
@@ -328,26 +362,22 @@ defmodule ElevatorState do
   # recursively call multi_call until all bad nodes are handled
   # should only be called in situations where it is possible to
   # terminate the recursion...
-  defp handle_bad_nodes(bad_nodes, message) do
-    handle_bad_nodes(bad_nodes, message, @sync_timeout)
+  def handle_bad_nodes(bad_nodes, message, timeout, answer_message, original_replies) do
+    replies = ElevatorState.handle_bad_nodes(bad_nodes, message, timeout)
+
+    GenServer.cast(ElevatorState, {answer_message, original_replies ++ replies})
   end
 
-  defp handle_bad_nodes(bad_nodes, message, timeout) when length(bad_nodes) != 0 do
-    # TODO: check if IO makes this function too slow
-    IO.inspect(bad_nodes, label: "Handling these bad nodes")
-    IO.inspect(message, label: "Handling calling this message")
+  def handle_bad_nodes(bad_nodes, message, timeout) when length(bad_nodes) != 0 do
     # find bad nodes still alive, union of Node.list() and bad_nodes
     bad_nodes = Node.list() -- (Node.list() -- bad_nodes)
-    # might be "stuck" if nodes are cont. using long time to reply
-    # is fine, but might be handled (finite steps)
-    # though not needed for this project
-    {replies, bad_nodes} = multi_call(message, timeout)
+    {replies, bad_nodes} = GenServer.multi_call(bad_nodes, ElevatorState, message, timeout)
 
-    replies ++ handle_bad_nodes(bad_nodes, message)
+    replies ++ ElevatorState.handle_bad_nodes(bad_nodes, message, timeout)
   end
 
   # end state for
-  defp handle_bad_nodes([], _message, _timeout) do
+  def handle_bad_nodes([], _message, _timeout) do
     # IO.puts "Done with bad nodes"
     []
   end
