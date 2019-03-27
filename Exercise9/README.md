@@ -44,8 +44,8 @@
 
 ### Task 3: Explain:
  **1. What is priority inversion? What is unbounded priority inversion?**
- A priority inversion is when a high-priority process has to wait for a low-priority one to finish. This is because the lower priority task has been assigned recourses before the higher priority, and leaving that unable to be executed as intended. 
- An unbounded priority inversion is one that can cause the high priority process to wait forever, as lower priority tasks grant recourses to each other and ignorign the higher priority tasks indefinetly. Therefore, there is no guarantee that the higher priority tasks will even complete. 
+ * A priority inversion is when a high-priority process has to wait for a low-priority one to finish. This is because the lower priority task has been assigned recourses before the higher priority, and leaving that unable to be executed as intended. 
+ * An unbounded priority inversion is one that can cause the high priority process to wait forever, as lower priority tasks grant recourses to each other and ignorign the higher priority tasks indefinetly. Therefore, there is no guarantee that the higher priority tasks will even complete. 
   
  **3. Does priority inheritance avoid deadlocks?**
  No, it does not.
@@ -65,12 +65,12 @@
 
 ### Task 4:
  **1. There are a number of assumptions / conditions that must be true for the utilization and response time tests to be usable (The "simple task model"). What are these assumptions? Comment on how realistic they are.**
-Fixed set of tasks 
-Periodic tasks with known periods
-Indepentant tasks 
-Constant worst case execution time 
-Deadlines equal to the task period 
-Overhead runs in zero time 
+* Fixed set of tasks 
+* Periodic tasks with known periods
+* Indepentant tasks 
+* Constant worst case execution time 
+* Deadlines equal to the task period 
+* Overhead runs in zero time 
  
  
  **2. Perform the utilization test for the task set. Is the task set schedulable?**
