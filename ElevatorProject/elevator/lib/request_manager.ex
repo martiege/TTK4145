@@ -1,5 +1,31 @@
 defmodule RequestManager do
-
+  @moduledoc """
+  The RequestManager module implements 
+	keeping track of, moving towards and
+	updating the current request target 
+	of the elevator. 
+	
+  The module also implements a cost 
+	function, to ensure the "best" elevator
+	will take new requests. 
+	
+  The module receives calls from the 
+	ElevatorState and Events.Arrive 
+	modules, to ensure that only one elevator 
+	will take a given request. 
+	
+  The module keeps track of the current 
+	target request, given as 
+	{button_type, floor}. In case there
+	are no active targets, no target is 
+	implemented as an empty tuple {}. 
+	
+  ## Starting the module: 
+  
+	iex> RequestManager.start_link(target)
+	
+  
+  """
   use GenServer
 
   @get_state_timeout 100
@@ -42,7 +68,6 @@ defmodule RequestManager do
   end
 
   def handle_call({:is_target, floor, behaviour, request_list}, _from, request_id) do
-    # IO.inspect(request_id, label: "Current request id")
     {_, request_floor} = request_id
 
     if floor == request_floor do
@@ -144,7 +169,6 @@ defmodule RequestManager do
     replies ++ RequestManager.handle_bad_nodes(bad_nodes, name, args, timeout)
   end
 
-  # end state for
   def handle_bad_nodes([], _name, _args, _timeout) do
     []
   end
@@ -159,7 +183,6 @@ defmodule RequestManager do
 
   defp get_cost(state, request_floor, button_type, request_list) do
     f_pen = @floor_penalty * abs(state[:floor] - request_floor)
-    # TODO: consider get_direction :stop, state[:dir] not?
     d_pen = @direction_penalty * cond do
       state[:dir] == get_direction(state[:floor], request_floor) ->
         0
@@ -233,7 +256,6 @@ defmodule RequestManager do
   end
 
   defp get_minimum_node(minimum_cost_list, node_name) do
-    # IO.inspect(minimum_cost_list, label: "Current min cost list")
     result = Enum.reduce(Map.keys(minimum_cost_list), {},
     fn request_id, acc ->
       {request_node, request_cost} = minimum_cost_list[request_id]

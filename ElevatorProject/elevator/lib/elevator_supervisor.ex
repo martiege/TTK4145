@@ -1,4 +1,34 @@
 defmodule ElevatorSupervisor do
+  @moduledoc """
+  The ElevatorSupervisor module supervises
+	the other main modules of this system: 
+	  Driver, the elevator driver
+	  ElevatorFinder, for finding other nodes
+	  ElevatorState, for keeping and modifying 
+		the state
+	  Events, for supervising the button and 
+		floor events
+	  RequestManager, for fulfilling the 
+		requests. 
+
+  The module will start and maintain the 
+	modules mentioned above, and restart 
+	those that are needed, if anything 
+	should happen. 
+	
+  The module is started depening on several
+	factors: 
+	If using this to test with simulators
+		iex> ElevatorSupervisor.start_link(node_number)
+	
+	If using on the elevator hardware
+		iex> ElevatorSupervisor.start_link(node_name)
+		
+	If specifying configurations: 
+		iex> ElevatorSupervisor.start_link(driver_port, 
+		 ...  node_name, bottom_floor, top_floor)
+  
+  """
   use Supervisor
 
   def start_link(node_number) when is_integer(node_number) do
@@ -54,7 +84,7 @@ defmodule ElevatorSupervisor do
       },
     ]
 
-    Supervisor.init(children, strategy: :one_for_all)
+    Supervisor.init(children, strategy: :one_for_one)
   end
 
 end

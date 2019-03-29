@@ -48,7 +48,7 @@
  * An unbounded priority inversion is one that can cause the high priority process to wait forever, as lower priority tasks grant recourses to each other and ignorign the higher priority tasks indefinetly. Therefore, there is no guarantee that the higher priority tasks will even complete. 
   
  **3. Does priority inheritance avoid deadlocks?**
- No, it does not.
+ No, it does not. We can still end up in a state that we cannot exit. 
  
 
 ## Utilization and response time
@@ -65,7 +65,7 @@
 
 ### Task 4:
  **1. There are a number of assumptions / conditions that must be true for the utilization and response time tests to be usable (The "simple task model"). What are these assumptions? Comment on how realistic they are.**
-* Fixed set of tasks 
+* Fixed set of tasks
 * Periodic tasks with known periods
 * Indepentant tasks 
 * Constant worst case execution time 
