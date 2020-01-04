@@ -1,4 +1,48 @@
 defmodule ElevatorState do
+  @moduledoc """
+  
+  The ElevatorState module implements 
+	keeping and handeling the local 
+	state, as well as the backup states
+	from the other nodes currently or
+	previously connected to this node. 
+	
+  The module will also, during initialization,
+	move the elevator down to the closest 
+	floor if it's between floors. 
+	
+  The module receives calls and casts from
+	the these modules: 
+	  ElevatorFinder: 
+		Sharing the current state.
+		Getting any existing backups. 
+	  Events.Button: 
+		Updating the current requests, 
+		locally and clobally. 
+	  Events.Arrive:
+		Change floors.
+		Clear requests.
+		Open door. 
+	  RequestManager:
+		Clear current request, locally 
+		and globally. 
+
+  The module will, in case of packet loss, 
+	spawn other processes to handle calls
+	to the faulty / bad nodes. Once this 
+	has been completed, the ElevatorState
+	will be notified. 
+	
+  The module needs to know the top and bottom
+	floors of this system. 
+	
+  ## Starting the module: 
+  
+	iex> ElevatorState.start_link(bottom_floor, top_floor)
+  
+  
+  """
+
   use GenServer
 
   @type state() :: map()
@@ -104,7 +148,6 @@ defmodule ElevatorState do
   # :send_request
   # useful for sending newly aquired requests from the local to the global elevators
   def handle_cast({:send_request, floor, button_type}, {state, backup}) do
-    # TODO: simplify the multi_calls, use module defined function instead
     state = if button_type != :command do
       # tell everyone to change their state
       {replies, bad_nodes} = GenServer.multi_call(Node.list(), ElevatorState, {:get_request, floor, button_type}, @sync_timeout)
@@ -235,7 +278,7 @@ defmodule ElevatorState do
     {:reply, state, {state, backup}}
   end
 
-  def handel_call(:get_backup, _from, {state, backup}) do
+  def handle_call(:get_backup, _from, {state, backup}) do
     {:reply, backup, {state, backup}}
   end
 
@@ -352,7 +395,6 @@ defmodule ElevatorState do
 
   # end state for
   def handle_bad_nodes([], _message, _timeout) do
-    # IO.puts "Done with bad nodes"
     []
   end
 

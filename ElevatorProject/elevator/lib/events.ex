@@ -1,4 +1,22 @@
 defmodule Events do
+  @moduledoc """
+  The Events module launches and 
+	maintains one instance of the
+	Events.Button modules for each 
+	of the call and command buttons, 
+	as well as one instance of the 
+	Events.Arrive module. 
+	
+  The module does not receive or send any 
+	messages.  
+	
+  ## Starting the module: 
+  
+	iex> Events.start_link(bottom_floor, top_floor)
+	
+  
+  """
+
   use Supervisor
 
   def start_link(bottom_floor, top_floor) do
@@ -7,7 +25,6 @@ defmodule Events do
 
   def init([bottom_floor, top_floor]) do
     IO.inspect(__MODULE__, label: "Initializing starting")
-    # TODO: clean up bellow, maybe add button_floor range to the config in SimpleElevator?
     button_floor = %{
       :command => bottom_floor..top_floor,
       :call_up => bottom_floor..(top_floor - 1),
@@ -43,6 +60,26 @@ end
 
 
 defmodule Events.Button do
+  @moduledoc """
+  The Events.Button module implements 
+	polling a specific button type at 
+	a specific floor, at a specific 
+	polling period. 
+	
+  The module does not receive any messages 
+	other than selfcalls to initiate 
+	the next polling. 
+
+  The module will send a cast to the
+	ElevatorState if an event has been 
+	registered. 
+	
+  ## Starting the module: 
+  
+	iex> Events.Button.start_link(floor, button_type)
+	
+  
+  """
   use GenServer
 
   @polling_period 100 # 10 hz human reaction time
@@ -72,6 +109,29 @@ end
 
 
 defmodule Events.Arrive do
+  @moduledoc """
+  The Events.Arrive module implements 
+	periodic polling of changes to the 
+	floor state. As well as updating the
+	ElevatorState, it also keeps it's own
+	floor state for redundancy. 
+	
+  The module does not receive any messages 
+	other than selfcalls to initiate 
+	the next polling. 
+
+  The module will send a call to the
+	ElevatorState if 
+	  there are any changes to the floor
+	  there is a reason to stop 
+	  it should enter an open door state
+	  
+  ## Starting the module: 
+  
+	iex> Events.Arrive.start_link(start_floor, bottom_floor, top_floor)
+	
+  
+  """
   use GenServer
 
   @polling_period 100
@@ -112,7 +172,7 @@ defmodule Events.Arrive do
       end
 
       if (new_floor == bottom_floor) or (new_floor == top_floor) do
-        GenServer.cast(SimpleElevator, {:set_dir, :stop})
+        GenServer.cast(ElevatorState, {:set_dir, :stop})
       end
 
       new_floor
